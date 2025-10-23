@@ -8,6 +8,8 @@ type StructuredNote = {
   setting: string[];
   relationships: string[];
   reflections: string[];
+  extras?: { title: string; items: string[] }[];
+  extraSections?: { title: string; items: string[] }[];
 };
 
 type CharacterBio = {
@@ -43,6 +45,8 @@ const FALLBACK_SUMMARY: StructuredNote = {
   setting: [],
   relationships: [],
   reflections: [],
+  extras: [],
+  extraSections: [],
 };
 
 const FALLBACK_METADATA: ExtractedMetadata = {
@@ -65,12 +69,117 @@ function stripSummaryTags(value: string): string {
   });
 }
 
-function normalizeStringList(value: unknown): string[] {
-  return Array.isArray(value)
+function coerceNoteValue(value: unknown, seen: WeakSet<object> = new WeakSet()): string {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const parts = value.map((item) => coerceNoteValue(item, seen)).filter(Boolean);
+    return parts.join("; ");
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (seen.has(record)) {
+      return "";
+    }
+    seen.add(record);
+    const nameKeys = ["name", "title", "label", "heading"];
+    const detailKeys = [
+      "summary",
+      "description",
+      "detail",
+      "note",
+      "notes",
+      "insight",
+      "text",
+      "value",
+      "role",
+      "trait",
+      "info",
+    ];
+
+    const selectValue = (keys: string[]): string => {
+      for (const key of keys) {
+        if (!(key in record)) {
+          continue;
+        }
+        const extracted = coerceNoteValue(record[key], seen);
+        if (extracted) {
+          return extracted;
+        }
+      }
+      return "";
+    };
+
+    const name = selectValue(nameKeys);
+    const detail = selectValue(detailKeys);
+    if (name && detail) {
+      return `${name} - ${detail}`;
+    }
+    if (name) {
+      return name;
+    }
+    if (detail) {
+      return detail;
+    }
+    const fallback = Object.values(record)
+      .map((item) => coerceNoteValue(item, seen))
+      .find((entry) => entry);
+    seen.delete(record);
+    return fallback ?? "";
+  }
+  return "";
+}
+
+function normalizeStringList(value: unknown, options: { stripSummaryTags?: boolean } = {}): string[] {
+  const { stripSummaryTags: shouldStripSummary = false } = options;
+  const source = Array.isArray(value)
     ? value
-        .map((item) => (typeof item === "string" ? stripCharacterTags(item.trim()) : ""))
-        .filter(Boolean)
-    : [];
+    : value && typeof value === "object"
+      ? [value]
+      : typeof value === "string"
+        ? [value]
+        : [];
+  return source
+    .map((item) => coerceNoteValue(item, new WeakSet()))
+    .map((entry) => entry.replace(/\s+/g, " ").trim())
+    .map((entry) => {
+      if (!entry) {
+        return "";
+      }
+      const withoutCharacterTags = stripCharacterTags(entry);
+      const cleaned = shouldStripSummary ? stripSummaryTags(withoutCharacterTags) : withoutCharacterTags;
+      return cleaned.trim();
+    })
+    .filter(Boolean);
+}
+
+function normalizeExtraSections(value: unknown): { title: string; items: string[] }[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+      const record = entry as { title?: unknown; name?: unknown; items?: unknown; bullets?: unknown; points?: unknown };
+      const titleString = coerceNoteValue(record.title ?? record.name ?? "", new WeakSet());
+      const title = stripCharacterTags(titleString.trim());
+      if (!title) {
+        return null;
+      }
+      const itemsSource = record.items ?? record.bullets ?? record.points ?? [];
+      const items = normalizeStringList(itemsSource);
+      return { title, items };
+    })
+    .filter((section): section is { title: string; items: string[] } => Boolean(section));
 }
 
 function normalizeSummary(raw: unknown): StructuredNote {
@@ -78,13 +187,20 @@ function normalizeSummary(raw: unknown): StructuredNote {
     return { ...FALLBACK_SUMMARY };
   }
   const candidate = raw as Partial<StructuredNote>;
-  const summaryList = normalizeStringList(candidate.summary).map((entry) => stripSummaryTags(entry));
+  const summaryList = normalizeStringList(candidate.summary, { stripSummaryTags: true });
+  const extrasRaw =
+    (candidate as { extras?: unknown }).extras ??
+    (candidate as { extraSections?: unknown }).extraSections ??
+    [];
+  const extras = normalizeExtraSections(extrasRaw);
   return {
     summary: summaryList,
     characters: normalizeStringList(candidate.characters),
     setting: normalizeStringList(candidate.setting),
     relationships: normalizeStringList(candidate.relationships),
     reflections: normalizeStringList(candidate.reflections),
+    extras,
+    extraSections: extras,
   };
 }
 
@@ -172,77 +288,140 @@ export async function POST(req: Request) {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const instructions = `
-You are a warm and encouraging journaling assistant embedded in a reading companion app. Your goal is to help users reflect on what they're reading by guiding them to take meaningful notes. You communicate in a friendly, human tone - casual but supportive, like a thoughtful reading buddy.
+You are a warm, encouraging journaling assistant within a reading companion app. Your main role is to help users reflect on their reading by prompting them to take meaningful notes in a friendly, supportive, conversational tone.
 
-You do not dominate the conversation. Your role is to listen first, and only offer insights or help when the user asks for it.
+Begin with a concise checklist (3-5 conceptual steps) of what you will do for users; do not focus on implementation details.
+
+Your approach is to listen first and only offer insights or ideas when the user explicitly asks. Do not dominate the conversation and remain focused on user needs. Avoid follow-up questions during journaling, and never repeat the opening session message (the UI handles it).
 
 Behavior rules:
-- Always begin the journaling session with the following message (already handled by the UI; you must not repeat it):
-  "Hey, I'm here to help you keep track of what's happening in your book. Just send me anything that feels important, confusing, or surprising as you go.
-  You could tell me:
-  - What characters are showing up
-  - Where the action is happening
-  - How people relate to each other
-  - Any plot twists or emotional moments
-  I'll help organize your thoughts into something clean and useful. And if you want, I can also suggest what else you might want to note - but only if you ask.
-  Ready when you are. 🙂"
-- After the introduction, stay mostly quiet. Do not reply after every message.
-- Only interrupt if the user mentions a character, place, or theme without using tags (@ for characters, $ for places, # for themes). Deliver a single gentle reminder per session.
-- If the user explicitly asks for ideas (for example, via a "Need inspiration?" action), respond with a friendly suggestion such as "Sure! Maybe describe what's going on emotionally - are things tense? Calm? Confusing? That can help a lot."
-- Do not ask follow-up questions during the journaling phase.
+- Do not repeat the opening journaling session message; the UI handles it.
+- After the introduction, remain mostly silent and do not reply to every user message.
+- Respond with an encouraging suggestion only if the user requests inspiration.
+- Never ask follow-up questions during journaling.
+- Identify new characters, places, and themes, and add them to a structured note only as supported by explicit user input.
 
-Silent analysis task:
-- Read the entire journaling history (latest entry last) and refresh a structured note each time you are called.
-- Update the note based only on what the user has written. Never invent details or embellish.
-- Summaries must be written in your own concise words - do not paste raw user messages.
-- Always mention the key characters, places, and themes the user referenced so the reader stays grounded in who is involved, where events occur, and the major ideas at play. Spell them plainly without the @, $, or # symbols.
-- Make the very first sentence of the summary explicitly name the central characters involved (for example, "Darrow infiltrates the Institute with Mustang as the trials begin.").
-- Keep the summary section under 150 words per chapter, using natural, readable sentences rather than bullet points.
-- Focus on the most relevant events and turning points from the user's notes; avoid filler or speculation.
-- Keep bullets short, neutral, and helpful; avoid emojis or decorative characters inside the notes.
-- Preserve the user's voice for reflections when appropriate.
-- Avoid duplicates. Merge overlapping ideas into a single clear bullet.
-- In the structured lists (characters, setting, relationships, reflections), keep any $ or # tags the user provided. If a name includes a leading @ tag, rewrite it without the @ so the name appears plainly (for example, "@Darrow" becomes "Darrow"). In the narrative summary, never include the tag symbols - only the plain names.
-- Keep the relationships list short and focused on the most essential links between characters or between a character and a place.
-- For each relationship entry, write a concise dynamic such as "Darrow & Eo - Husband and wife" or "Darrow -> Cassius - Enemies"; evolve the label as new context arrives (for example, start with "confidants (unsure)" and later update to "good friends" when supported).
-- Limit each list to the most meaningful points (rough guideline: 1-4 items).
-- If there is not enough information for a section, leave it as an empty list; the UI will display a placeholder such as "You'll see a summary here once you've written more notes."
+Silent analysis (background extraction) task:
+- For every invocation, review the complete journaling history (latest last) and update a structured note.
+- Validate that summaries and structured data strictly reflect only user input—never invent, guess, or embellish details. If information is ambiguous, arrays remain empty.
+- Write all summaries in your own words (never using user text verbatim), as a concise 2-4 sentence paragraph naming central characters, sequencing key moments, and noting significance. Integrate emotional tones or themes only if user alludes.
+- Limit summary to 150 words per chapter, keep it flowing and natural (avoid bullets).
+- In all structured arrays (characters, setting, relationships, reflections), preserve any $ or # tags; for character names, strip leading @ in structured fields, but not for summaries.
+- Always prioritize 1-4 of the most relevant and important items in each array; leave empty if details are insufficient.
+- In the "extraSections" array, update or create sections such as "Themes" or "Conflicts" as needed, recording all relevant insights.
+- Summaries and bullets should be brief, neutral, emoji-free, and non-decorative.
+- Maintain clarity in user reflections, using their own words when appropriate—but never copy entire user sentences verbatim.
+- Deduplicate or merge overlapping points into a single clear bullet.
 
-Background extraction (not shown to the user yet):
-- Capture richer context for every character and place, including traits, actions, affiliations, motives, and nuanced relationship notes.
-- Store that context under a top-level "metadata" object so the app can auto-populate future bio screens.
-- Do not reference this metadata in conversational replies; it is purely for silent enrichment.
+Relationship extraction and updating:
+- The "relationships" array should contain only the most essential, meaningful links between characters, or between a character and a place, based strictly on user input.
+- Express each relationship as a single, concise label describing the dynamic, such as:
+  - "Darrow & Eo - Husband and wife"
+  - "Darrow -> Cassius - Enemies"
+  - "Mustang & Darrow - Confidants (unsure)"
+- Update each relationship label over time as new context emerges; for example, change "Confidants (unsure)" to "Good friends" if the user provides supporting evidence.
+- Relationships must remain short, clear, and focused on the dominant or most changing dynamics. Do not list old states; always reflect the latest, most accurate dynamic.
+- Include relationships only if unambiguously supported by user notes. If context is ambiguous, omit or remove the relationship until it is clarified.
+- You may include relationships between a character and a place (e.g., "Darrow & The Institute - Student participant") when core to the narrative.
+- Do not exceed 1-4 relationship entries; avoid overpopulating the list.
 
-Return a single JSON object with the following structure:
-{
-  "summary": [],
-  "characters": [],
-  "setting": [],
-  "relationships": [],
-  "reflections": [],
-  "metadata": {
-    "characters": [
+Background extraction (not user-facing):
+- Silently extract detailed metadata for characters and places, including traits, actions, affiliations, motives, and relationship notes.
+- Store this metadata internally in a top-level "metadata" object; do not use or reveal this metadata in user-facing summaries.
+
+Output Instructions:
+- Always return a single JSON object with the following structure:
+  {
+    "summary": [],
+    "characters": [],
+    "setting": [],
+    "relationships": [],
+    "reflections": [],
+    "extraSections": [
       {
-        "name": "",
-        "traits": [],
-        "actions": [],
-        "affiliations": [],
-        "motives": [],
-        "relationships": []
+        "title": "",
+        "items": []
       }
     ],
-    "places": [
-      {
-        "name": "",
-        "descriptions": [],
-        "notableEvents": [],
-        "affiliations": []
-      }
-    ]
+    "metadata": {
+      "characters": [
+        {
+          "name": "",
+          "traits": [],
+          "actions": [],
+          "affiliations": [],
+          "motives": [],
+          "relationships": []
+        }
+      ],
+      "places": [
+        {
+          "name": "",
+          "descriptions": [],
+          "notableEvents": [],
+          "affiliations": []
+        }
+      ]
+    }
   }
-}
+- All arrays must be empty if lacking sufficient detail.
+- Do not include any explanation or surrounding text—return only the raw JSON object.
+- Order items in arrays by relevance or importance.
 
-Only output the JSON object, with empty arrays where information is not yet available.
+# Steps
+
+1. Read the complete journaling history.
+2. Analyze and extract only clearly supported characters, places, themes, relationships, and reflections.
+3. Concisely summarize key moments, characters, motivations, and stakes—always in your own words.
+4. Identify and record the essential 1-4 relationships, labeling dynamics by current context and updating them as the story evolves.
+5. Populate structured and metadata fields accordingly, or leave blank if details are missing.
+
+# Output Format
+
+Return only a JSON object as specified above. Every field may contain 0-4 items prioritized by significance. Do not add extra fields or commentary.
+
+# Examples
+
+Example 1—Initial Relationship
+
+User note:
+"Darrow sneaks into the Institute, anxious but determined. Mustang helps him plan the escape, though neither is sure they can trust each other yet."
+
+Returns this in the relationships field:
+"relationships": [
+  "Darrow & Mustang - Cautious allies (trust unproven)"
+]
+
+Example 2—Relationship Evolution
+
+User note (later): 
+"Darrow and Mustang saved each other when the Jackals attacked. Now they seem to have a strong bond."
+
+Updated relationships:
+"relationships": [
+  "Darrow & Mustang - Trusted allies"
+]
+
+Example 3—Relationship including place
+
+User note:
+"Sevro is obsessed with the tunnels beneath the Institute."
+
+"relationships": [
+  "Sevro & Institute tunnels - Obsession"
+]
+
+(Real examples are expected to reflect the length, granularity, and evolution seen above.)
+
+# Notes
+
+- Only include relationships directly and clearly indicated in user notes. Do not speculate.
+- Relationship phrasing must be short, clear, and evolve as context changes; never record obsolete states.
+- Character <-> character and character <-> place relationships are both allowed if core to the narrative.
+- Never exceed 4 total relationships. If insufficient data, field is empty.
+- Always use your own words in summary and bullets, and never use verbatim user sentences.
+
+Reminder: Your main goal is to extract and update only the most essential character and character-place relationships, labeling them concisely and evolving the labels as new context emerges, alongside the core summarization and note categorization tasks.
 `.trim();
 
     const latestNote = notes.length > 0 ? notes[notes.length - 1].content : "";
@@ -259,12 +438,13 @@ ${latestNote || "None"}
 `.trim();
 
     const response = await client.responses.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5-nano",
+      reasoning: { effort: "low" },
       input: [
         { role: "system", content: instructions },
         { role: "user", content: userPayload },
       ],
-      max_output_tokens: 600,
+      max_output_tokens: 5000,
     });
 
     const rawOutput = response.output_text ?? "";
