@@ -208,6 +208,7 @@ export async function POST(request: Request) {
     const systemPrompt = `
 You are helping a reader understand what changed in their structured book notes after a reflection session.
 - Produce a concise 1-2 sentence summary describing the most meaningful updates.
+- Never refer to the act of note-taking or the presence of a note within summaries or reflections; instead, present all extracted information as direct observations or story narrative.
 - Focus on the new insights or evolutions, not on everything that stayed the same.
 - Refer to sections (Summary, Characters, Relationships, Setting, Themes, etc.) when it helps orient the reader.
 - Use your own words—do not quote the reader directly.
@@ -236,7 +237,7 @@ ${responsesDigest}
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      max_output_tokens: 600,
+      max_output_tokens: 5000,
     });
 
     const output = response.output_text ?? "";

@@ -628,16 +628,53 @@ function createAdHocTopicFromInput(input) {
   if (!trimmed || trimmed.length < 4) {
     return null;
   }
-  const { label, detail } = splitTopicEntry(trimmed);
-  if (!label) {
-    return null;
+  const cleaned = stripAffirmationPrefix(trimmed);
+  const usable = cleaned.length >= 4 ? cleaned : trimmed;
+  const focusPrefacePattern =
+    /^(?:i\s+(?:forgot|should|want(?:ed)?)\s+to\s+mention(?:\s+about)?|also|and\s+also)\s+/i;
+  const focusTextCandidate = usable.replace(focusPrefacePattern, "").trim();
+  const focusText = focusTextCandidate.length >= 4 ? focusTextCandidate : usable;
+
+  const { label: initialLabel, detail: initialDetail } = splitTopicEntry(focusText);
+  const properNames = extractProperNouns(focusText);
+  const meaningfulNames = properNames.filter(isMeaningfulName);
+
+  let section = "General";
+  let label = initialLabel;
+  let detail = initialDetail;
+
+  if (meaningfulNames.length >= 2) {
+    section = "Relationships";
+    label = meaningfulNames.slice(0, 2).join(" & ");
+  } else if (meaningfulNames.length === 1) {
+    section = "Characters";
+    label = meaningfulNames[0];
   }
+
+  if (!label) {
+    label = meaningfulNames[0] || focusText.slice(0, 32).trim();
+  }
+
+  let detailSource = focusText;
+  if (section === "Characters" && label) {
+    detailSource = stripLeadingName(focusText, label);
+  } else if (section === "Relationships" && meaningfulNames.length > 0) {
+    detailSource = stripLeadingRelationship(focusText, meaningfulNames);
+  }
+  detailSource = detailSource.replace(/^[\s,:;-]+/, "").trim();
+  if (!detailSource) {
+    detailSource = initialDetail && initialDetail !== label ? initialDetail : focusText;
+  }
+  const sanitizedDetail = sanitizePerspective(detailSource);
+  const compactDetail = shortenSentence(sanitizedDetail || detailSource, MAX_REFLECTION_DETAIL_WORDS);
+  detail = compactDetail || label;
+
   return {
     id: `adhoc-${safeUuid()}`,
-    section: "General",
+    section,
     label,
     detail,
-    source: trimmed,
+    source: usable,
   };
 }
 
@@ -734,6 +771,34 @@ function isAffirmativeResponse(value) {
   return /(yes|yep|sure|sure thing|okay|ok|let'?s go|let'?s keep going|keep going|yup|yeah|do it|absolutely|sounds good|why not|count me in|let'?s keep rolling)/.test(
     normalized,
   );
+}
+
+function stripAffirmationPrefix(value) {
+  const trimmed = (value || "").trim();
+  if (!trimmed) return "";
+  const patterns = [
+    /^yes\b[,\s-]*/i,
+    /^yeah\b[,\s-]*/i,
+    /^yep\b[,\s-]*/i,
+    /^yup\b[,\s-]*/i,
+    /^sure\b[,\s-]*/i,
+    /^ok\b[,\s-]*/i,
+    /^okay\b[,\s-]*/i,
+    /^absolutely\b[,\s-]*/i,
+    /^definitely\b[,\s-]*/i,
+    /^totally\b[,\s-]*/i,
+    /^of course\b[,\s-]*/i,
+    /^sounds good\b[,\s-]*/i,
+    /^why not\b[,\s-]*/i,
+    /^please\b[,\s-]*/i,
+    /^let'?s\b[,\s-]*/i,
+  ];
+  for (const pattern of patterns) {
+    if (pattern.test(trimmed)) {
+      return trimmed.replace(pattern, "").trim();
+    }
+  }
+  return trimmed;
 }
 
 function isNegativeResponse(value) {
@@ -1694,6 +1759,7 @@ export default function JournalingPage() {
         if (!entry || typeof entry.content !== "string") {
           return null;
         }
+        const rawContent = entry.content.trim();
         const topicSection =
           entry.topic && typeof entry.topic.section === "string" ? entry.topic.section.trim() : "";
         const topicLabel = entry.topic && typeof entry.topic.label === "string" ? entry.topic.label.trim() : "";
@@ -1711,7 +1777,15 @@ export default function JournalingPage() {
           }
         }
         const contextLabel = contextParts.length > 0 ? contextParts.join(" - ") : "Reflection";
-        const noteContent = `[Reflection | ${contextLabel}] ${entry.content}`;
+        const candidateValue =
+          entry.candidate && typeof entry.candidate.value === "string" ? entry.candidate.value.trim() : "";
+        const compactDetail = shortenSentence(rawContent, MAX_REFLECTION_DETAIL_WORDS);
+        const fallbackDetail = ensureSentence(compactDetail);
+        const contextualFallback =
+          contextLabel && contextLabel !== "Reflection"
+            ? ensureSentence(`${contextLabel} - ${compactDetail}`)
+            : fallbackDetail;
+        const noteContent = candidateValue || contextualFallback;
         return {
           id: entry.id || `reflection-${index}`,
           content: noteContent,
@@ -2179,59 +2253,88 @@ export default function JournalingPage() {
       }
 
       const queue = Array.isArray(context.topicsQueue) ? [...context.topicsQueue] : [];
-      const matchedTopic = findTopicMatchFromMessage(trimmed, queue);
+      const searchValueBase = stripAffirmationPrefix(trimmed);
+      const searchValue = searchValueBase || trimmed;
+      const matchedTopic = findTopicMatchFromMessage(searchValue, queue);
+      const adHocTopic = matchedTopic ? null : createAdHocTopicFromInput(searchValue);
+      const fallbackTopicForRecord =
+        context.currentTopic || context.lastTopic || buildGeneralReflectionTopic();
+      const responseTopic = (matchedTopic && matchedTopic.topic) || adHocTopic || fallbackTopicForRecord;
+
+      const meaningful = !isVagueResponse(trimmed);
+      const updatedUserResponses = meaningful ? [...context.userResponses, trimmed] : context.userResponses;
+      let updatedLog = Array.isArray(context.insightLog) ? [...context.insightLog] : [];
+      let updatedMeaningfulResponses = Array.isArray(context.meaningfulResponses)
+        ? [...context.meaningfulResponses]
+        : [];
+
+      if (meaningful) {
+        const candidateEntry = createCandidateEntry(trimmed, responseTopic);
+        const responseRecord = {
+          id: messageRecord.id,
+          content: trimmed,
+          createdAt: messageRecord.createdAt,
+          topic: responseTopic,
+          candidate: candidateEntry,
+          response: trimmed,
+        };
+        updatedLog = [...updatedLog, responseRecord];
+        updatedMeaningfulResponses = [...updatedMeaningfulResponses, responseRecord];
+        void updateSummaryFromReflection(responseRecord, updatedMeaningfulResponses);
+      } else {
+        updatedLog = [
+          ...updatedLog,
+          {
+            response: trimmed,
+            topic: responseTopic,
+            candidate: null,
+            createdAt: messageRecord.createdAt,
+          },
+        ];
+      }
+
+      const nextContext = {
+        ...context,
+        userResponses: updatedUserResponses,
+        insightLog: updatedLog,
+        meaningfulResponses: updatedMeaningfulResponses,
+      };
+      reflectionContextRef.current = nextContext;
+      setReflectionContext(nextContext);
+
+      const overrides = {
+        userResponses: updatedUserResponses,
+        insightLog: updatedLog,
+        meaningfulResponses: updatedMeaningfulResponses,
+      };
+
       if (matchedTopic) {
-        launchTopicQuestion(matchedTopic.topic, matchedTopic.remaining, 0, {
-          userResponses: context.userResponses,
-          insightLog: context.insightLog,
-          meaningfulResponses: context.meaningfulResponses,
-        });
+        launchTopicQuestion(matchedTopic.topic, matchedTopic.remaining, 0, overrides);
+        return;
+      }
+
+      if (adHocTopic) {
+        launchTopicQuestion(adHocTopic, queue, 0, overrides);
         return;
       }
 
       if (isAffirmativeResponse(trimmed)) {
         if (queue.length > 0) {
           const [nextTopic, ...remaining] = queue;
-          launchTopicQuestion(nextTopic, remaining, 0, {
-            userResponses: context.userResponses,
-            insightLog: context.insightLog,
-            meaningfulResponses: context.meaningfulResponses,
-          });
+          launchTopicQuestion(nextTopic, remaining, 0, overrides);
           return;
         }
-        launchTopicQuestion(buildGeneralReflectionTopic(), queue, 0, {
-          userResponses: context.userResponses,
-          insightLog: context.insightLog,
-          meaningfulResponses: context.meaningfulResponses,
-        });
-        return;
-      }
-
-      const adHocTopic = createAdHocTopicFromInput(trimmed);
-      if (adHocTopic) {
-        launchTopicQuestion(adHocTopic, queue, 0, {
-          userResponses: context.userResponses,
-          insightLog: context.insightLog,
-          meaningfulResponses: context.meaningfulResponses,
-        });
+        launchTopicQuestion(buildGeneralReflectionTopic(), queue, 0, overrides);
         return;
       }
 
       if (queue.length > 0) {
         const [fallbackTopic, ...remaining] = queue;
-        launchTopicQuestion(fallbackTopic, remaining, 0, {
-          userResponses: context.userResponses,
-          insightLog: context.insightLog,
-          meaningfulResponses: context.meaningfulResponses,
-        });
+        launchTopicQuestion(fallbackTopic, remaining, 0, overrides);
         return;
       }
 
-      launchTopicQuestion(buildGeneralReflectionTopic(), [], 0, {
-        userResponses: context.userResponses,
-        insightLog: context.insightLog,
-        meaningfulResponses: context.meaningfulResponses,
-      });
+      launchTopicQuestion(buildGeneralReflectionTopic(), [], 0, overrides);
       return;
     }
 
