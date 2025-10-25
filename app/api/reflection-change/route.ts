@@ -231,13 +231,13 @@ ${responsesDigest}
 `.trim();
 
     const response = await client.responses.create({
-      model: "gpt-5-nano",
+      model: process.env.AI_MODEL_CHANGE || "gpt-5-nano",
       reasoning: { effort: "low" },
       input: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      max_output_tokens: 5000,
+      max_output_tokens: (process.env.AI_MAX_TOKENS_CHANGE ? parseInt(process.env.AI_MAX_TOKENS_CHANGE, 10) : 5000),
     });
 
     const output = response.output_text ?? "";

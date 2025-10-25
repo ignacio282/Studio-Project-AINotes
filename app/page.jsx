@@ -85,6 +85,20 @@ function createEmptySummary() {
   };
 }
 
+// Best-effort chapter number from session
+function getChapterNumberFromSession(session) {
+  if (session && typeof session.chapterNumber === "number") {
+    return session.chapterNumber;
+  }
+  const title = (session && session.chapterTitle) || "";
+  const match = title.match(/(?:chapter|chap\.|cap[ií]tulo)\s*(\d+)/i);
+  if (match) {
+    const n = parseInt(match[1], 10);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
 // Generates message IDs using crypto when available
 function safeUuid() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -301,7 +315,7 @@ function hasSummaryContent(summary) {
 }
 
 // Reusable block for each section inside the summary drawer
-function SummaryCategory({ title, items, placeholder, showWhenEmpty = false, highlights = [] }) {
+function SummaryCategory({ title, items, placeholder, showWhenEmpty = false, highlights = [], onCharacterClick }) {
   const sanitizedItems = Array.isArray(items)
     ? items.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean)
     : [];
@@ -350,12 +364,26 @@ function SummaryCategory({ title, items, placeholder, showWhenEmpty = false, hig
                 </div>
               );
             }
+            const isCharacters = title === "Characters";
+            const contentNode = (
+              <div className="flex flex-1 items-start gap-2">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-secondary)]" aria-hidden />
+                {isCharacters ? (
+                  <button
+                    type="button"
+                    onClick={() => onCharacterClick && onCharacterClick(item)}
+                    className="flex-1 text-left text-sm leading-6 text-[var(--color-text-accent)] underline decoration-[var(--color-accent-subtle)] underline-offset-2 hover:text-[var(--color-accent-hover)]"
+                  >
+                    {item}
+                  </button>
+                ) : (
+                  <span className="flex-1 text-sm leading-6 text-[var(--color-text-main)]">{item}</span>
+                )}
+              </div>
+            );
             return (
               <div key={key} className={`${listLayoutClass} ${containerHighlightClass}`}>
-                <div className="flex flex-1 items-start gap-2">
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-secondary)]" aria-hidden />
-                  <span className="flex-1 text-sm leading-6 text-[var(--color-text-main)]">{item}</span>
-                </div>
+                {contentNode}
                 {isHighlighted ? <HighlightBadge /> : null}
               </div>
             );
@@ -368,7 +396,7 @@ function SummaryCategory({ title, items, placeholder, showWhenEmpty = false, hig
   );
 }
 
-function SummarySectionStack({ summary, highlights = {}, showPlaceholders = false }) {
+function SummarySectionStack({ summary, highlights = {}, showPlaceholders = false, onCharacterClick }) {
   const extras = Array.isArray(summary?.extras) ? summary.extras : [];
   const resolvedHighlights = typeof highlights === "object" && highlights !== null ? highlights : {};
   const sectionHighlights = (title) => {
@@ -385,6 +413,7 @@ function SummarySectionStack({ summary, highlights = {}, showPlaceholders = fals
         placeholder={SUMMARY_PLACEHOLDERS.Summary}
         showWhenEmpty={showPlaceholders}
         highlights={sectionHighlights("Summary")}
+        onCharacterClick={onCharacterClick}
       />
       <SummaryCategory
         title="Characters"
@@ -392,6 +421,7 @@ function SummarySectionStack({ summary, highlights = {}, showPlaceholders = fals
         placeholder={SUMMARY_PLACEHOLDERS.Characters}
         showWhenEmpty={showPlaceholders}
         highlights={sectionHighlights("Characters")}
+        onCharacterClick={onCharacterClick}
       />
       <SummaryCategory
         title="Setting"
@@ -399,6 +429,7 @@ function SummarySectionStack({ summary, highlights = {}, showPlaceholders = fals
         placeholder={SUMMARY_PLACEHOLDERS.Setting}
         showWhenEmpty={showPlaceholders}
         highlights={sectionHighlights("Setting")}
+        onCharacterClick={onCharacterClick}
       />
       <SummaryCategory
         title="Relationships"
@@ -406,6 +437,7 @@ function SummarySectionStack({ summary, highlights = {}, showPlaceholders = fals
         placeholder={SUMMARY_PLACEHOLDERS.Relationships}
         showWhenEmpty={showPlaceholders}
         highlights={sectionHighlights("Relationships")}
+        onCharacterClick={onCharacterClick}
       />
       <SummaryCategory
         title="User Reflections"
@@ -413,6 +445,7 @@ function SummarySectionStack({ summary, highlights = {}, showPlaceholders = fals
         placeholder={SUMMARY_PLACEHOLDERS["User Reflections"]}
         showWhenEmpty={showPlaceholders}
         highlights={sectionHighlights("User Reflections")}
+        onCharacterClick={onCharacterClick}
       />
       {extras.map((section, index) => (
         <SummaryCategory
@@ -422,6 +455,7 @@ function SummarySectionStack({ summary, highlights = {}, showPlaceholders = fals
           placeholder={DEFAULT_EXTRA_PLACEHOLDER}
           showWhenEmpty={showPlaceholders && Array.isArray(section.items) && section.items.length === 0}
           highlights={sectionHighlights(section.title)}
+          onCharacterClick={onCharacterClick}
         />
       ))}
     </div>
@@ -1423,6 +1457,7 @@ function ReflectionCompleteScreen({
   highlights,
   changeSummary,
   isChangeSummaryLoading = false,
+  onCharacterClick,
 }) {
   const timestampLabel = formatSessionTimestamp(completedAt);
   const hasChangeSummary = typeof changeSummary === "string" && changeSummary.trim().length > 0;
@@ -1454,7 +1489,12 @@ function ReflectionCompleteScreen({
             </div>
           ) : null}
           <div className="rounded-xl bg-[var(--color-surface)] p-6">
-            <SummarySectionStack summary={session.summary} highlights={highlights} showPlaceholders />
+            <SummarySectionStack
+              summary={session.summary}
+              highlights={highlights}
+              showPlaceholders
+              onCharacterClick={onCharacterClick}
+            />
           </div>
         </div>
       </main>
@@ -1481,7 +1521,7 @@ function ReflectionCompleteScreen({
 }
 
 // Slide-up panel that shows the structured notes summary
-function SummarySheet({ open, onClose, session, highlights }) {
+function SummarySheet({ open, onClose, session, highlights, onCharacterClick }) {
   return (
     <AnimatePresence>
       {open ? (
@@ -1523,7 +1563,96 @@ function SummarySheet({ open, onClose, session, highlights }) {
 
               {/* Summary sections grouped inside a single surface */}
               <div className="flex-1 overflow-y-auto rounded-xl bg-[var(--color-surface)] p-4">
-                <SummarySectionStack summary={session.summary} highlights={highlights} showPlaceholders />
+                <SummarySectionStack
+                  summary={session.summary}
+                  highlights={highlights}
+                  showPlaceholders
+                  onCharacterClick={onCharacterClick}
+                />
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
+function CharacterBottomSheet({ open, onClose, name, role, shortBio, relationships = [], seeMoreHref = "#", isLoading = false }) {
+  const filteredRelationships = Array.isArray(relationships)
+    ? relationships
+        .filter((r) => typeof r === "string" && r.toLowerCase().includes((name || "").toLowerCase()))
+        .slice(0, 8)
+    : [];
+  return (
+    <AnimatePresence>
+      {open ? (
+        <motion.div className="fixed inset-0 z-50 flex items-end justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.button
+            type="button"
+            aria-label="Close character"
+            className="absolute inset-0 bg-black/30"
+            onClick={onClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+          <motion.div
+            className="relative z-10 w-full max-w-2xl rounded-t-3xl bg-[var(--color-page)] px-4 pb-8 pt-6"
+            initial={{ y: 400 }}
+            animate={{ y: 0 }}
+            exit={{ y: 400 }}
+            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+            style={{ maxHeight: "75vh" }}
+          >
+            <div className="mx-auto flex h-full w-full max-w-xl flex-col gap-4 overflow-hidden">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-xs text-[var(--color-secondary)]">Character</div>
+                  <div className="text-2xl font-medium text-[var(--color-text-main)]">{name || "Unknown"}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="text-sm font-medium text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
+                >
+                  Done
+                </button>
+              </div>
+              <div className="rounded-lg bg-[var(--color-surface)] p-4">
+                {isLoading ? (
+                  <div className="text-sm text-[var(--color-secondary)]">Generating a quick bio…</div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="text-sm text-[var(--color-secondary)]">{role || "Role not clear yet"}</div>
+                    <div className="text-sm leading-6 text-[var(--color-text-main)]">
+                      {shortBio || "I’ll write a bio once there’s more about this character in your notes."}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="rounded-lg bg-[var(--color-surface)] p-4">
+                <div className="text-sm font-semibold text-[var(--color-text-main)]">Relationships</div>
+                <div className="mt-2 space-y-2">
+                  {filteredRelationships.length > 0 ? (
+                    filteredRelationships.map((r, idx) => (
+                      <div key={`${idx}-${r.slice(0, 12)}`} className="flex items-start gap-2 text-sm">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-secondary)]" aria-hidden />
+                        <span className="flex-1 text-[var(--color-text-main)]">{r}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-[var(--color-text-disabled)]">No relationships captured yet</div>
+                  )}
+                </div>
+              </div>
+              <div>
+                <a
+                  href={seeMoreHref}
+                  className="inline-flex items-center justify-center rounded-full bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-[var(--color-text-on-accent)] hover:bg-[var(--color-accent-hover)]"
+                >
+                  See more
+                </a>
               </div>
             </div>
           </motion.div>
@@ -1590,6 +1719,10 @@ export default function JournalingPage() {
   const reflectionBaselineSummaryRef = useRef(null);
   const reflectionDiffRef = useRef({ added: {} });
   const reflectionChangeSummaryRequestRef = useRef(false);
+  const noteIdMapRef = useRef(new Map()); // localId -> dbId
+  const [isCharacterSheetOpen, setIsCharacterSheetOpen] = useState(false);
+  const [characterSheet, setCharacterSheet] = useState({ name: "", role: "", shortBio: "", slug: "" });
+  const [isCharacterLoading, setIsCharacterLoading] = useState(false);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -1712,7 +1845,7 @@ export default function JournalingPage() {
       aiControllerRef.current.abort();
     }
 
-    const { source = "journal", insights = [] } = options ?? {};
+    const { source = "journal", insights = [], noteLocalId } = options ?? {};
     const previousNormalized = normalizeSummary(previousSummary ?? createEmptySummary());
 
     const controller = new AbortController();
@@ -1763,6 +1896,22 @@ export default function JournalingPage() {
           summary: normalizedSummary,
         }));
         summaryRef.current = normalizedSummary;
+
+        // Persist AI summary snapshot to the just-saved note if available
+        try {
+          if (noteLocalId && noteIdMapRef.current instanceof Map) {
+            const dbId = noteIdMapRef.current.get(noteLocalId);
+            if (dbId) {
+              await fetch(`/api/notes/${dbId}/summary`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ aiSummary: normalizedSummary }),
+              });
+            }
+          }
+        } catch {
+          // non-blocking
+        }
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -1775,6 +1924,47 @@ export default function JournalingPage() {
         aiControllerRef.current = null;
       }
       setIsUpdatingSummary(false);
+    }
+  };
+
+  const persistNoteToDB = async (localId, content, createdAt) => {
+    try {
+      const chapterNumber = getChapterNumberFromSession(session);
+      let bookId = session.bookId;
+      const isUuid = typeof bookId === "string" && /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(bookId);
+      if (!isUuid) {
+        // Create a book on the fly using the current session title
+        const bookRes = await fetch("/api/books", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: session.bookTitle || "My Book" }),
+        });
+        if (bookRes.ok) {
+          const payload = await bookRes.json();
+          const newId = payload?.book?.id;
+          if (newId) {
+            bookId = newId;
+            setSession((prev) => ({ ...prev, bookId }));
+          }
+        }
+      }
+      const res = await fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookId,
+          chapterNumber,
+          content,
+          createdAt,
+        }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.id && noteIdMapRef.current instanceof Map) {
+        noteIdMapRef.current.set(localId, data.id);
+      }
+    } catch {
+      // ignore persistence failures for now
     }
   };
 
@@ -1975,10 +2165,47 @@ export default function JournalingPage() {
       ...prev,
       notes: nextNotes,
     }));
-
-    void updateSummaryWithAI(trimmed, nextNotes, previousSummary);
+    // save note in background, then update summary; patch summary back to this note id
+    void persistNoteToDB(userMessage.id, trimmed, createdAt);
+    void updateSummaryWithAI(trimmed, nextNotes, previousSummary, { noteLocalId: userMessage.id });
 
     setInputValue("");
+  };
+
+  const slugifyLocal = (name) => name.toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/\s+/g, "-");
+
+  const openCharacterSheet = async (name) => {
+    if (!name) return;
+    setIsCharacterSheetOpen(true);
+    setCharacterSheet({ name, role: "", shortBio: "", slug: slugifyLocal(name) });
+    setIsCharacterLoading(true);
+    try {
+      const listRes = await fetch(`/api/characters?bookId=${encodeURIComponent(session.bookId)}`);
+      const list = listRes.ok ? await listRes.json() : { characters: [] };
+      const existing = Array.isArray(list?.characters)
+        ? list.characters.find((c) => typeof c?.name === "string" && c.name.toLowerCase() === name.toLowerCase())
+        : null;
+      if (!existing) {
+        await fetch(`/api/characters/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bookId: session.bookId, names: [name] }),
+        });
+      }
+      const slug = existing?.slug || slugifyLocal(name);
+      const detailRes = await fetch(`/api/characters/${encodeURIComponent(session.bookId)}/${encodeURIComponent(slug)}`);
+      if (detailRes.ok) {
+        const payload = await detailRes.json();
+        const ch = payload?.character || {};
+        setCharacterSheet({
+          name: ch.name || name,
+          role: ch.role || "",
+          shortBio: ch.short_bio || "",
+          slug,
+        });
+      }
+    } catch {}
+    setIsCharacterLoading(false);
   };
 
   const handleFormSubmit = (event) => {
@@ -2633,27 +2860,41 @@ export default function JournalingPage() {
             </div>
           </footer>
         </div>
-        <SummarySheet
-          open={showSummary && summaryAvailable}
-          onClose={() => setShowSummary(false)}
-          session={session}
-          highlights={summaryHighlights}
-        />
+      <SummarySheet
+        open={showSummary && summaryAvailable}
+        onClose={() => setShowSummary(false)}
+        session={session}
+        highlights={summaryHighlights}
+        onCharacterClick={openCharacterSheet}
+      />
       </div>
     );
   }
 
   if (flowStep === FLOW_STATES.COMPLETE) {
     return (
-      <ReflectionCompleteScreen
-        session={session}
-        completedAt={sessionCompletedAt}
-        onBackToBook={handleFinishSession}
-        onStartNewNote={handleStartNewNoteFlow}
-        highlights={summaryHighlights}
-        changeSummary={reflectionChangeSummary}
-        isChangeSummaryLoading={isReflectionChangeSummaryLoading}
-      />
+      <>
+        <ReflectionCompleteScreen
+          session={session}
+          completedAt={sessionCompletedAt}
+          onBackToBook={handleFinishSession}
+          onStartNewNote={handleStartNewNoteFlow}
+          highlights={summaryHighlights}
+          changeSummary={reflectionChangeSummary}
+          isChangeSummaryLoading={isReflectionChangeSummaryLoading}
+          onCharacterClick={openCharacterSheet}
+        />
+        <CharacterBottomSheet
+          open={isCharacterSheetOpen}
+          onClose={() => setIsCharacterSheetOpen(false)}
+          name={characterSheet.name}
+          role={characterSheet.role}
+          shortBio={characterSheet.shortBio}
+          isLoading={isCharacterLoading}
+          seeMoreHref={`/books/${encodeURIComponent(session.bookId)}/characters/${encodeURIComponent(characterSheet.slug)}`}
+          relationships={Array.isArray(session?.summary?.relationships) ? session.summary.relationships : []}
+        />
+      </>
     );
   }
 
@@ -2764,6 +3005,17 @@ export default function JournalingPage() {
         onClose={() => setShowSummary(false)}
         session={session}
         highlights={summaryHighlights}
+        onCharacterClick={openCharacterSheet}
+      />
+      <CharacterBottomSheet
+        open={isCharacterSheetOpen}
+        onClose={() => setIsCharacterSheetOpen(false)}
+        name={characterSheet.name}
+        role={characterSheet.role}
+        shortBio={characterSheet.shortBio}
+        isLoading={isCharacterLoading}
+        seeMoreHref={`/books/${encodeURIComponent(session.bookId)}/characters/${encodeURIComponent(characterSheet.slug)}`}
+        relationships={Array.isArray(session?.summary?.relationships) ? session.summary.relationships : []}
       />
     </div>
   );

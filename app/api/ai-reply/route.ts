@@ -479,13 +479,13 @@ ${latestNote || "None"}
 `.trim();
 
     const response = await client.responses.create({
-      model: "gpt-5-nano",
+      model: process.env.AI_MODEL_JOURNAL || "gpt-5-nano",
       reasoning: { effort: "low" },
       input: [
         { role: "system", content: instructions },
         { role: "user", content: userPayload },
       ],
-      max_output_tokens: 5000,
+      max_output_tokens: (process.env.AI_MAX_TOKENS_JOURNAL ? parseInt(process.env.AI_MAX_TOKENS_JOURNAL, 10) : 5000),
     });
 
     const rawOutput = response.output_text ?? "";

@@ -226,13 +226,13 @@ Craft the next single question now.
 `.trim();
 
     const response = await client.responses.create({
-      model: "gpt-5-nano",
+      model: process.env.AI_MODEL_REFLECTION || "gpt-5-nano",
       reasoning: { effort: "low" },
       input: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userPrompt },
       ],
-      max_output_tokens: 1000,
+      max_output_tokens: (process.env.AI_MAX_TOKENS_REFLECTION ? parseInt(process.env.AI_MAX_TOKENS_REFLECTION, 10) : 1000),
     });
 
     const question = (response.output_text ?? "").trim().replace(/\s+/g, " ");
