@@ -227,9 +227,18 @@ function computeSummaryDiff(previous, next) {
 }
 
 // Renders a chat bubble (AI vs user styling handled here)
-function NoteMessage({ message }) {
+function NoteMessage({ message, onAction }) {
   const isAI = message.role === "ai";
   const alignment = isAI ? "justify-start" : "justify-end";
+  const actions = Array.isArray(message.actions)
+    ? message.actions.filter((action) => action && typeof action.label === "string")
+    : [];
+
+  const handleActionClick = (action) => {
+    if (!action || typeof onAction !== "function") return;
+    onAction(action, message);
+  };
+
   return (
     <div className={`mb-6 flex ${alignment}`}>
       {isAI ? (
@@ -237,6 +246,23 @@ function NoteMessage({ message }) {
           {/* Assistant responses span the width and use primary text tone */}
           <div className="w-full max-w-2xl text-sm leading-6 text-[var(--color-text-main)]">
             <div className="whitespace-pre-wrap">{message.content}</div>
+            {actions.length > 0 ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {actions.map((action) => {
+                  const key = action.id || action.label;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => handleActionClick(action)}
+                      className="inline-flex items-center justify-center rounded-full bg-[var(--color-accent-subtle)] px-4 py-1.5 text-sm font-medium text-[var(--color-text-accent)] transition hover:bg-[var(--color-accent-subtle)]/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+                    >
+                      {action.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         </>
       ) : (
@@ -797,6 +823,53 @@ function stripAffirmationPrefix(value) {
     if (pattern.test(trimmed)) {
       return trimmed.replace(pattern, "").trim();
     }
+  }
+  return trimmed;
+}
+
+function stripReflectionAffirmation(text) {
+  const trimmed = (text || "").trim();
+  if (!trimmed) return "";
+  const match = trimmed.match(/^([A-Za-z"',\s-]{1,80}[.!])\s+(.*)$/);
+  if (!match) {
+    return trimmed;
+  }
+  const lead = match[1].trim();
+  const remainder = match[2].trim();
+  if (!remainder || lead.includes("?")) {
+    return trimmed;
+  }
+  const normalizedLead = lead.toLowerCase();
+  const wordCount = lead.split(/\s+/).filter(Boolean).length;
+  const keywords = [
+    "great",
+    "awesome",
+    "sounds good",
+    "sounds great",
+    "sounds nice",
+    "sounds perfect",
+    "glad",
+    "cool",
+    "okay",
+    "ok",
+    "alright",
+    "nice",
+    "perfect",
+    "love",
+    "excellent",
+    "fantastic",
+    "wonderful",
+    "sweet",
+    "sure",
+    "happy to",
+    "got it",
+    "understood",
+    "good to",
+  ];
+  const hasKeyword = keywords.some((keyword) => normalizedLead.includes(keyword));
+  const endsWithExclaim = lead.endsWith("!");
+  if ((hasKeyword || endsWithExclaim) && wordCount <= 10) {
+    return remainder;
   }
   return trimmed;
 }
@@ -1478,9 +1551,16 @@ function ChevronDown({ open }) {
 export default function JournalingPage() {
   // Local state: message history, structured summary, and UI flags
   const [messages, setMessages] = useState(() => [
-    { id: safeUuid(), role: "ai", content: INTRO_MESSAGE, createdAt: new Date().toISOString() },
+    {
+      id: safeUuid(),
+      role: "ai",
+      content: INTRO_MESSAGE,
+      createdAt: new Date().toISOString(),
+      actions: [{ id: "start", label: "Start" }],
+    },
   ]);
   const [inputValue, setInputValue] = useState("");
+  const [isComposerLocked, setIsComposerLocked] = useState(true);
   const [session, setSession] = useState(() => ({
     ...sessionTemplate,
     notes: [...sessionTemplate.notes],
@@ -1496,9 +1576,12 @@ export default function JournalingPage() {
   const [sessionCompletedAt, setSessionCompletedAt] = useState(null);
   const [reflectionMessages, setReflectionMessages] = useState([]);
   const [reflectionInput, setReflectionInput] = useState("");
+  const [isReflectionComposerLocked, setIsReflectionComposerLocked] = useState(false);
   const [reflectionContext, setReflectionContext] = useState(createInitialReflectionContext);
   const [isFetchingReflectionQuestion, setIsFetchingReflectionQuestion] = useState(false);
   const scrollRef = useRef(null);
+  const composerInputRef = useRef(null);
+  const reflectionInputRef = useRef(null);
   const aiControllerRef = useRef(null);
   const summaryRef = useRef(session.summary);
   const reflectionTimerRef = useRef(null);
@@ -1513,6 +1596,18 @@ export default function JournalingPage() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, reflectionMessages, showSummary, flowStep]);
+
+  useEffect(() => {
+    if (!isComposerLocked && composerInputRef.current) {
+      composerInputRef.current.focus();
+    }
+  }, [isComposerLocked]);
+
+  useEffect(() => {
+    if (!isReflectionComposerLocked && flowStep === FLOW_STATES.REFLECTION && reflectionInputRef.current) {
+      reflectionInputRef.current.focus();
+    }
+  }, [isReflectionComposerLocked, flowStep]);
 
   useEffect(() => {
     summaryRef.current = session.summary;
@@ -1862,6 +1957,7 @@ export default function JournalingPage() {
 
   const summaryAvailable = hasSummaryContent(session.summary);
   const handleSubmit = () => {
+    if (isComposerLocked) return;
     const trimmed = inputValue.trim();
     if (!trimmed) return;
 
@@ -1908,6 +2004,51 @@ export default function JournalingPage() {
     setFlowStep(FLOW_STATES.JOURNALING);
   };
 
+  const handleJournalMessageAction = (action, message) => {
+    if (!action) return;
+    const actionId = action.id || action.type;
+    if (actionId === "start") {
+      setIsComposerLocked(false);
+      setMessages((prev) =>
+        prev.map((entry) => {
+          if (entry.id !== message.id) {
+            return entry;
+          }
+          if (!entry.actions || entry.actions.length === 0) {
+            return entry;
+          }
+          return { ...entry, actions: [] };
+        }),
+      );
+    }
+  };
+
+  const handleReflectionMessageAction = (action, message) => {
+    if (!action) return;
+    const actionId = action.id || action.type;
+    if (actionId === "start") {
+      setIsReflectionComposerLocked(false);
+      setReflectionMessages((prev) =>
+        prev.map((entry) => {
+          if (entry.id !== message.id) {
+            return entry;
+          }
+          if (!entry.actions || entry.actions.length === 0) {
+            return entry;
+          }
+          return { ...entry, actions: [] };
+        }),
+      );
+      const syntheticMessage = {
+        id: safeUuid(),
+        role: "user",
+        content: action.label || "Start",
+        createdAt: new Date().toISOString(),
+      };
+      processReflectionTurn(syntheticMessage);
+    }
+  };
+
   const handleStartReflection = () => {
     if (reflectionTimerRef.current) {
       clearTimeout(reflectionTimerRef.current);
@@ -1924,8 +2065,15 @@ export default function JournalingPage() {
     setReflectionChangeSummary("");
     setIsReflectionChangeSummaryLoading(false);
     const topics = extractReflectionTopics(session.summary);
+    setIsReflectionComposerLocked(true);
     setReflectionMessages([
-      { id: safeUuid(), role: "ai", content: REFLECTION_INTRO_MESSAGE, createdAt: new Date().toISOString() },
+      {
+        id: safeUuid(),
+        role: "ai",
+        content: REFLECTION_INTRO_MESSAGE,
+        createdAt: new Date().toISOString(),
+        actions: [{ id: "start", label: "Start" }],
+      },
     ]);
     setReflectionInput("");
     const initialContext = {
@@ -1965,6 +2113,7 @@ export default function JournalingPage() {
     setSummaryHighlights({});
     setReflectionChangeSummary("");
     setIsReflectionChangeSummaryLoading(false);
+    setIsReflectionComposerLocked(false);
     setFlowStep(FLOW_STATES.JOURNALING);
   };
 
@@ -2004,7 +2153,13 @@ export default function JournalingPage() {
         signal: controller.signal,
       });
 
-      appendReflectionMessages([createAIReflectionMessage(question)]);
+      const normalizedQuestion = typeof question === "string" ? question.trim() : "";
+      const finalQuestion =
+        questionIndex === 0
+          ? stripReflectionAffirmation(normalizedQuestion) || normalizedQuestion
+          : normalizedQuestion;
+
+      appendReflectionMessages([createAIReflectionMessage(finalQuestion)]);
       setReflectionContext((prev) => {
         const nextState = {
           ...prev,
@@ -2014,7 +2169,7 @@ export default function JournalingPage() {
           lastTopic: topic,
           questionsAsked: [
             ...(prev.questionsAsked ?? []),
-            { topicId: topic.id, prompt: question, index: questionIndex },
+            { topicId: topic.id, prompt: finalQuestion, index: questionIndex },
           ],
           awaitingContinue: false,
         };
@@ -2116,6 +2271,7 @@ export default function JournalingPage() {
       reflectionQuestionControllerRef.current = null;
     }
     setIsFetchingReflectionQuestion(false);
+    setIsReflectionComposerLocked(false);
     setFlowStep(FLOW_STATES.SUMMARY);
   };
 
@@ -2136,7 +2292,7 @@ export default function JournalingPage() {
       createdAt: userMessage?.createdAt || new Date().toISOString(),
     };
 
-    const context = reflectionContext;
+    const context = reflectionContextRef.current || reflectionContext;
 
     if (context.stage === REFLECTION_STAGES.INTRO) {
       if (isNegativeResponse(trimmed)) {
@@ -2345,6 +2501,7 @@ export default function JournalingPage() {
     }
   };
   const handleReflectionSubmit = () => {
+    if (isReflectionComposerLocked) return;
     const trimmed = reflectionInput.trim();
     if (!trimmed) return;
     if (isFetchingReflectionQuestion) return;
@@ -2411,7 +2568,7 @@ export default function JournalingPage() {
         <main ref={scrollRef} className="flex-1 overflow-y-auto px-6 pb-36 pt-8">
           <div className="mx-auto max-w-3xl">
             {reflectionMessages.map((message) => (
-              <NoteMessage key={message.id} message={message} />
+              <NoteMessage key={message.id} message={message} onAction={handleReflectionMessageAction} />
             ))}
             {isFetchingReflectionQuestion ? <TypingIndicator /> : null}
           </div>
@@ -2435,20 +2592,32 @@ export default function JournalingPage() {
           <footer className="px-0 pb-6 pt-3">
             <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4">
               {summaryError ? <div className="text-xs text-red-500">{summaryError}</div> : null}
-              <form onSubmit={handleReflectionFormSubmit} className="flex items-end gap-2 rounded-lg bg-[var(--color-surface)] px-3 py-2">
+              <form
+                onSubmit={handleReflectionFormSubmit}
+                className={`flex items-end gap-2 rounded-lg bg-[var(--color-surface)] px-3 py-2 ${isReflectionComposerLocked || isFetchingReflectionQuestion ? "opacity-60" : ""}`}
+                aria-disabled={isReflectionComposerLocked || isFetchingReflectionQuestion}
+              >
                 <textarea
+                  ref={reflectionInputRef}
                   value={reflectionInput}
                   onChange={(event) => setReflectionInput(event.target.value)}
                   onKeyDown={handleReflectionKeyDown}
                   rows={1}
-                  disabled={isFetchingReflectionQuestion}
-                  placeholder={isFetchingReflectionQuestion ? "Give me a second..." : "What are you thinking?"}
-                  className={`h-12 flex-1 resize-none bg-transparent text-sm leading-6 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] ${isFetchingReflectionQuestion ? "cursor-not-allowed opacity-60" : ""}`}
+                  disabled={isReflectionComposerLocked || isFetchingReflectionQuestion}
+                  aria-disabled={isReflectionComposerLocked || isFetchingReflectionQuestion}
+                  placeholder={
+                    isReflectionComposerLocked
+                      ? "Press Start to begin."
+                      : isFetchingReflectionQuestion
+                        ? "Give me a second..."
+                        : "What are you thinking?"
+                  }
+                  className="h-12 flex-1 resize-none bg-transparent text-sm leading-6 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] disabled:cursor-not-allowed disabled:text-[var(--color-text-disabled)]"
                 />
                 <button
                   type="submit"
-                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-accent)] text-[var(--color-text-on-accent)] transition hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
-                  disabled={!reflectionInput.trim() || isFetchingReflectionQuestion}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-accent)] text-[var(--color-text-on-accent)] transition hover:bg-[var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isReflectionComposerLocked || !reflectionInput.trim() || isFetchingReflectionQuestion}
                   aria-label="Send reflection"
                 >
                   <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -2513,7 +2682,7 @@ export default function JournalingPage() {
       <main ref={scrollRef} className="flex-1 overflow-y-auto px-6 pb-40 pt-8">
         <div className="mx-auto max-w-3xl">
           {messages.map((message) => (
-            <NoteMessage key={message.id} message={message} />
+            <NoteMessage key={message.id} message={message} onAction={handleJournalMessageAction} />
           ))}
         </div>
       </main>
@@ -2546,25 +2715,33 @@ export default function JournalingPage() {
               {/* Placeholder action for future attachments */}
               <button
                 type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-surface)] text-xl text-[var(--color-secondary)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+                className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-surface)] text-xl text-[var(--color-secondary)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="Add attachment"
+                disabled={isComposerLocked}
               >
                 +
               </button>
               {/* Message input and submit affordance */}
-              <form onSubmit={handleFormSubmit} className="flex flex-1 items-end gap-2 rounded-lg bg-[var(--color-surface)] px-3 py-2">
+              <form
+                onSubmit={handleFormSubmit}
+                className={`flex flex-1 items-end gap-2 rounded-lg bg-[var(--color-surface)] px-3 py-2 ${isComposerLocked ? "opacity-60" : ""}`}
+                aria-disabled={isComposerLocked}
+              >
                 <textarea
+                  ref={composerInputRef}
                   value={inputValue}
                   onChange={(event) => setInputValue(event.target.value)}
                   onKeyDown={handleKeyDown}
                   rows={1}
                   placeholder="What's on your mind?"
-                  className="h-10 flex-1 resize-none bg-transparent text-sm leading-6 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)]"
+                  className="h-10 flex-1 resize-none bg-transparent text-sm leading-6 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] disabled:cursor-not-allowed disabled:text-[var(--color-text-disabled)]"
+                  disabled={isComposerLocked}
+                  aria-disabled={isComposerLocked}
                 />
                 <button
                   type="submit"
-                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-accent)] text-[var(--color-text-on-accent)] transition hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
-                  disabled={!inputValue.trim()}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-accent)] text-[var(--color-text-on-accent)] transition hover:bg-[var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isComposerLocked || !inputValue.trim()}
                   aria-label="Send note"
                 >
                   <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
