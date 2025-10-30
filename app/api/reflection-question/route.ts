@@ -188,12 +188,23 @@ function summarizeNote(summary: StructuredNote): string {
 
 export async function POST(request: Request) {
   try {
+    const url = new URL(request.url);
+    const mock = url.searchParams.get("mock") === "1" || process.env.MOCK_AI === "1" || process.env.NEXT_PUBLIC_MOCK_AI === "1";
+
     const body = (await request.json()) as RequestBody;
     const summary = normalizeStructuredNote(body.summary);
     const topic = sanitizeTopic(body.topic);
     const questionIndex = Number.isInteger(body.questionIndex) ? Number(body.questionIndex) : 0;
     const userResponses = sanitizeList(body.userResponses);
     const askedQuestions = sanitizeList(body.askedQuestions);
+
+    if (mock) {
+      const label = topic.label || "this part";
+      const question = questionIndex === 0
+        ? `What stood out to you about ${label}?`
+        : `What about ${label} feels most important now?`;
+      return Response.json({ question });
+    }
 
     const summaryDigest = summarizeNote(summary) || "No structured notes were captured yet.";
     const responsesDigest =
@@ -226,13 +237,13 @@ Craft the next single question now.
 `.trim();
 
     const response = await client.responses.create({
-      model: "gpt-5-nano",
+      model: process.env.AI_MODEL_REFLECTION || "gpt-5-nano",
       reasoning: { effort: "low" },
       input: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userPrompt },
       ],
-      max_output_tokens: 1000,
+      max_output_tokens: (process.env.AI_MAX_TOKENS_REFLECTION ? parseInt(process.env.AI_MAX_TOKENS_REFLECTION, 10) : 1000),
     });
 
     const question = (response.output_text ?? "").trim().replace(/\s+/g, " ");
