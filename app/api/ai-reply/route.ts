@@ -268,15 +268,38 @@ function normalizeMetadata(raw: unknown): ExtractedMetadata {
 
 export async function POST(req: Request) {
   try {
+    const url = new URL(req.url);
+    const mock = url.searchParams.get("mock") === "1" || process.env.MOCK_AI === "1" || process.env.NEXT_PUBLIC_MOCK_AI === "1";
+
+    const body = (await req.json()) as RequestBody;
+    const content = body?.content ?? "";
+    const summary = body?.summary ?? FALLBACK_SUMMARY;
+    const notes = Array.isArray(body?.notes) ? body.notes : [];
+
+    if (mock) {
+      const merged: StructuredNote = normalizeSummary({
+        ...summary,
+        summary: Array.isArray(summary?.summary) && summary.summary.length > 0
+          ? summary.summary
+          : [
+              "A concise recap of the chapter’s key beats and what mattered.",
+            ],
+        characters: Array.from(new Set([...(summary?.characters ?? []), "Darrow", "Mustang"])),
+        setting: Array.from(new Set([...(summary?.setting ?? []), "Mars"])),
+        relationships: Array.from(new Set([...(summary?.relationships ?? []), "Darrow & Mustang - Trusted allies"])),
+        reflections: summary?.reflections ?? [],
+        extras: summary?.extras ?? [],
+      });
+      const metadata: ExtractedMetadata = { characters: [], places: [] };
+      return Response.json({ summary: merged, metadata });
+    }
+
     if (!process.env.OPENAI_API_KEY) {
       return new Response(
         JSON.stringify({ error: "Missing OPENAI_API_KEY in environment" }),
         { status: 500 },
       );
     }
-
-    const { content, summary = FALLBACK_SUMMARY, notes = [] } =
-      (await req.json()) as RequestBody;
 
     if (!content || typeof content !== "string") {
       return new Response(

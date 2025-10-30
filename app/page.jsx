@@ -368,11 +368,11 @@ function SummaryCategory({ title, items, placeholder, showWhenEmpty = false, hig
             const contentNode = (
               <div className="flex flex-1 items-start gap-2">
                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-secondary)]" aria-hidden />
-                {isCharacters ? (
+                {isCharacters && onCharacterClick ? (
                   <button
                     type="button"
                     onClick={() => onCharacterClick && onCharacterClick(item)}
-                    className="flex-1 text-left text-sm leading-6 text-[var(--color-text-accent)] underline decoration-[var(--color-accent-subtle)] underline-offset-2 hover:text-[var(--color-accent-hover)]"
+                    className="flex-1 text-left text-sm leading-6 text-[var(--color-text-accent)] font-medium hover:underline hover:decoration-[var(--color-accent-subtle)] hover:underline-offset-2 hover:text-[var(--color-accent-hover)]"
                   >
                     {item}
                   </button>
@@ -1396,7 +1396,7 @@ function createCandidateEntry(response, topic) {
   };
 }
 
-function NoteSummaryScreen({ session, completedAt, onBack, onReflect, onFinish, highlights }) {
+function NoteSummaryScreen({ session, completedAt, onBack, onReflect, onFinish, highlights, onCharacterClick }) {
   const timestampLabel = formatSessionTimestamp(completedAt);
   return (
     <div className="flex h-screen flex-col bg-[var(--color-page)] text-[var(--color-text-main)]">
@@ -1423,7 +1423,12 @@ function NoteSummaryScreen({ session, completedAt, onBack, onReflect, onFinish, 
             </h1>
           </div>
           <div className="rounded-xl bg-[var(--color-surface)] p-6">
-            <SummarySectionStack summary={session.summary} highlights={highlights} showPlaceholders />
+            <SummarySectionStack
+              summary={session.summary}
+              highlights={highlights}
+              showPlaceholders
+              onCharacterClick={onCharacterClick}
+            />
           </div>
         </div>
       </main>
@@ -2176,6 +2181,9 @@ export default function JournalingPage() {
 
   const openCharacterSheet = async (name) => {
     if (!name) return;
+    if (flowStep !== FLOW_STATES.COMPLETE && flowStep !== FLOW_STATES.SUMMARY) {
+      return;
+    }
     setIsCharacterSheetOpen(true);
     setCharacterSheet({ name, role: "", shortBio: "", slug: slugifyLocal(name) });
     setIsCharacterLoading(true);
@@ -2759,14 +2767,27 @@ export default function JournalingPage() {
 
   if (flowStep === FLOW_STATES.SUMMARY) {
     return (
-      <NoteSummaryScreen
-        session={session}
-        completedAt={sessionCompletedAt}
-        onBack={handleBackToJournaling}
-        onReflect={handleStartReflection}
-        onFinish={handleFinishSession}
-        highlights={summaryHighlights}
-      />
+      <>
+        <NoteSummaryScreen
+          session={session}
+          completedAt={sessionCompletedAt}
+          onBack={handleBackToJournaling}
+          onReflect={handleStartReflection}
+          onFinish={handleFinishSession}
+          highlights={summaryHighlights}
+          onCharacterClick={openCharacterSheet}
+        />
+        <CharacterBottomSheet
+          open={isCharacterSheetOpen}
+          onClose={() => setIsCharacterSheetOpen(false)}
+          name={characterSheet.name}
+          role={characterSheet.role}
+          shortBio={characterSheet.shortBio}
+          isLoading={isCharacterLoading}
+          seeMoreHref={`/books/${encodeURIComponent(session.bookId)}/characters/${encodeURIComponent(characterSheet.slug)}`}
+          relationships={Array.isArray(session?.summary?.relationships) ? session.summary.relationships : []}
+        />
+      </>
     );
   }
 
@@ -2808,12 +2829,12 @@ export default function JournalingPage() {
               className="flex w-full items-center justify-center gap-2 border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-sm font-medium text-[var(--color-text-main)] transition hover:text-[var(--color-text-accent)] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isUpdatingSummary}
             >
-              <span>See Notes</span>
+              <span>{isUpdatingSummary ? "Capturing notes..." : "See Notes"}</span>
               <ChevronDown open={showSummary} />
             </button>
           ) : isUpdatingSummary ? (
             <div className="flex w-full items-center justify-center border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-sm font-medium text-[var(--color-secondary)]">
-              <span>Collecting your notes...</span>
+              <span>Capturing notes...</span>
             </div>
           ) : null}
           <footer className="px-0 pb-6 pt-3">
@@ -2865,7 +2886,6 @@ export default function JournalingPage() {
         onClose={() => setShowSummary(false)}
         session={session}
         highlights={summaryHighlights}
-        onCharacterClick={openCharacterSheet}
       />
       </div>
     );
@@ -2929,21 +2949,21 @@ export default function JournalingPage() {
       </main>
       {/* Ribbon toggle for opening the structured summary + composer kept fixed */}
       <div className="sticky bottom-0 z-30 border-t border-[var(--color-surface)] bg-[var(--color-page)] px-0">
-        {summaryAvailable ? (
-          <button
-            type="button"
-            onClick={() => setShowSummary((prev) => !prev)}
-            className="flex w-full items-center justify-center gap-2 border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-sm font-medium text-[var(--color-text-main)] transition hover:text-[var(--color-text-accent)] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isUpdatingSummary}
-          >
-            <span>See Notes</span>
-            <ChevronDown open={showSummary} />
-          </button>
-        ) : isUpdatingSummary ? (
-          <div className="flex w-full items-center justify-center border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-sm font-medium text-[var(--color-secondary)]">
-            <span>Collecting your notes...</span>
-          </div>
-        ) : null}
+          {summaryAvailable ? (
+            <button
+              type="button"
+              onClick={() => setShowSummary((prev) => !prev)}
+              className="flex w-full items-center justify-center gap-2 border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-sm font-medium text-[var(--color-text-main)] transition hover:text-[var(--color-text-accent)] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isUpdatingSummary}
+            >
+              <span>{isUpdatingSummary ? "Capturing notes..." : "See Notes"}</span>
+              <ChevronDown open={showSummary} />
+            </button>
+          ) : isUpdatingSummary ? (
+            <div className="flex w-full items-center justify-center border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-sm font-medium text-[var(--color-secondary)]">
+              <span>Capturing notes...</span>
+            </div>
+          ) : null}
         <footer className="px-0 pb-6 pt-3">
           <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4">
             {/* Error state when summary refresh fails */}
@@ -3005,17 +3025,6 @@ export default function JournalingPage() {
         onClose={() => setShowSummary(false)}
         session={session}
         highlights={summaryHighlights}
-        onCharacterClick={openCharacterSheet}
-      />
-      <CharacterBottomSheet
-        open={isCharacterSheetOpen}
-        onClose={() => setIsCharacterSheetOpen(false)}
-        name={characterSheet.name}
-        role={characterSheet.role}
-        shortBio={characterSheet.shortBio}
-        isLoading={isCharacterLoading}
-        seeMoreHref={`/books/${encodeURIComponent(session.bookId)}/characters/${encodeURIComponent(characterSheet.slug)}`}
-        relationships={Array.isArray(session?.summary?.relationships) ? session.summary.relationships : []}
       />
     </div>
   );

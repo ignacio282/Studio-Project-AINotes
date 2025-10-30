@@ -1,4 +1,6 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
+import CollapsibleRow from "@/components/ui/CollapsibleRow";
+import NoteSnippetCard from "@/components/NoteSnippetCard";
 
 export const dynamic = "force-dynamic";
 
@@ -9,75 +11,149 @@ function Placeholder({ label }) {
 export default async function CharacterProfilePage({ params }) {
   const { bookId, slug } = await params;
   const supabase = getServiceSupabase();
+
   const { data, error } = await supabase
     .from("characters")
-    .select("name,role,short_bio,full_bio,first_chapter,last_chapter,relationships,timeline")
+    .select("name,role,short_bio,full_bio,first_chapter,last_chapter,timeline")
     .eq("book_id", bookId)
     .eq("slug", slug)
     .single();
 
   const character = error ? null : data;
 
+  // Only show the populating badge until a short bio exists.
+  const isPopulating = !(
+    character && typeof character.short_bio === "string" && character.short_bio.trim().length > 0
+  );
+
+  // Fetch first/last appearance notes if chapters are known
+  let firstNote = null;
+  let lastNote = null;
+  const chapters = [character?.first_chapter, character?.last_chapter]
+    .filter((n) => Number.isFinite(n))
+    .map((n) => Number(n));
+  if (chapters.length) {
+    const { data: notesData } = await supabase
+      .from("notes")
+      .select("id,content,ai_summary,created_at,chapter_number")
+      .eq("book_id", bookId)
+      .in("chapter_number", chapters)
+      .order("created_at", { ascending: true });
+    const all = Array.isArray(notesData) ? notesData : [];
+    if (Number.isFinite(character?.first_chapter)) {
+      const list = all.filter((n) => n.chapter_number === character.first_chapter);
+      firstNote = list[0] ?? null;
+    }
+    if (Number.isFinite(character?.last_chapter)) {
+      const list = all.filter((n) => n.chapter_number === character.last_chapter);
+      lastNote = list[list.length - 1] ?? null;
+    }
+  }
+
   return (
     <div className="mx-auto min-h-screen max-w-2xl space-y-6 bg-[var(--color-page)] px-6 py-8 text-[var(--color-text-main)]">
-      <header>
-        <div className="text-xs text-[var(--color-secondary)]">Character Profile</div>
-        <h1 className="mt-1 text-2xl font-medium" style={{ fontFamily: "var(--font-h2)" }}>
+      {/* Header */}
+      <header className="space-y-2">
+        <h1 className="text-3xl font-semibold tracking-tight" style={{ fontFamily: "var(--font-h1)" }}>
           {character?.name || "Unknown"}
         </h1>
+        <div className="text-sm text-[var(--color-secondary)]">{character?.role || "Protagonist"}</div>
+        {isPopulating && (
+          <div className="inline-flex items-center gap-2 rounded-full bg-[var(--color-surface)] px-3 py-1">
+            <svg viewBox="0 0 24 24" className="h-3 w-3 animate-spin text-[var(--color-secondary)]" aria-hidden>
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.3" strokeWidth="3" fill="none" />
+              <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" fill="none" />
+            </svg>
+            <span className="caption">Populating profile from your notes...</span>
+          </div>
+        )}
       </header>
 
-      <section className="rounded-xl bg-[var(--color-surface)] p-4">
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div><span className="font-semibold">Role:</span> {character?.role || <Placeholder label="Not clear yet" />}</div>
-          <div>
-            <span className="font-semibold">First appearance:</span>{" "}
-            {Number.isFinite(character?.first_chapter) ? character.first_chapter : <Placeholder label="—" />}
+      {/* Bio */}
+      <section className="text-base leading-7 text-[var(--color-text-main)]">
+        {character?.short_bio ? (
+          character.short_bio
+        ) : character?.full_bio ? (
+          character.full_bio.length > 240 ? character.full_bio.slice(0, 240) + "..." : character.full_bio
+        ) : (
+          <div className="animate-pulse space-y-2">
+            <div className="h-4 w-5/6 rounded bg-[color:var(--rc-color-text-secondary)/20%]" />
+            <div className="h-4 w-4/6 rounded bg-[color:var(--rc-color-text-secondary)/20%]" />
+            <div className="h-4 w-3/6 rounded bg-[color:var(--rc-color-text-secondary)/20%]" />
+            <div className="caption text-[var(--color-secondary)]">Populating short bio...</div>
           </div>
-          <div>
-            <span className="font-semibold">Last seen:</span>{" "}
-            {Number.isFinite(character?.last_chapter) ? character.last_chapter : <Placeholder label="—" />}
-          </div>
-        </div>
+        )}
       </section>
 
-      <section className="rounded-xl bg-[var(--color-surface)] p-4">
-        <div className="text-base font-semibold">Summary</div>
-        <div className="mt-2 text-sm leading-6">
-          {character?.full_bio || character?.short_bio || (
-            <Placeholder label="I’ll write a profile once there’s more about this character in your notes." />
-          )}
-        </div>
+      {/* First/Last appearance card (both collapsed by default) */}
+      <section className="rounded-2xl bg-[var(--color-surface)] p-4">
+        <CollapsibleRow
+          label="First Appearance"
+          value={
+            Number.isFinite(character?.first_chapter)
+              ? `Chapter ${character.first_chapter}`
+              : "-"
+          }
+          defaultOpen={false}
+        >
+          <div className="pt-1">
+            <NoteSnippetCard
+              bookId={bookId}
+              chapter={character?.first_chapter}
+              note={firstNote}
+            />
+          </div>
+        </CollapsibleRow>
+
+        <div className="my-3 h-px bg-[var(--color-secondary)] opacity-20" aria-hidden />
+
+        <CollapsibleRow
+          label="Last seen"
+          value={
+            Number.isFinite(character?.last_chapter)
+              ? `Chapter ${character.last_chapter}`
+              : "-"
+          }
+          defaultOpen={false}
+        >
+          <div className="pt-1">
+            <NoteSnippetCard
+              bookId={bookId}
+              chapter={character?.last_chapter}
+              note={lastNote}
+            />
+          </div>
+        </CollapsibleRow>
       </section>
 
-      <section className="rounded-xl bg-[var(--color-surface)] p-4">
-        <div className="text-base font-semibold">Timeline</div>
-        <div className="mt-3 space-y-3">
+      {/* Journey timeline */}
+      <section className="rounded-2xl bg-[var(--color-surface)] p-4">
+        <div
+          className="text-xl font-semibold text-[var(--color-text-main)]"
+          style={{ fontFamily: "var(--font-title)" }}
+        >
+          Journey
+        </div>
+        <div className="mt-4 space-y-6">
           {Array.isArray(character?.timeline) && character.timeline.length > 0 ? (
             character.timeline.map((t, idx) => (
-              <div key={`${t.chapterNumber}-${idx}`} className="flex gap-3 text-sm">
-                <div className="w-20 shrink-0 text-[var(--color-secondary)]">Ch. {t.chapterNumber}</div>
-                <div className="flex-1 text-[var(--color-text-main)]">{t.snippet}</div>
+              <div key={`${t.chapterNumber}-${idx}`} className="relative pl-7">
+                {/* vertical line */}
+                <span
+                  className="absolute left-2 top-0 h-full w-px bg-[color:var(--rc-color-text-secondary)/30%]"
+                  aria-hidden
+                />
+                {/* dot */}
+                <span
+                  className="absolute left-1.5 top-1 h-3 w-3 rounded-full border border-[color:var(--rc-color-text-secondary)] bg-transparent"
+                  aria-hidden
+                />
+                <div className="caption">Chapter {t.chapterNumber}</div>
+                <div className="mt-1 text-[var(--color-text-main)]">{t.snippet}</div>
               </div>
             ))
           ) : (
             <Placeholder label="No appearances yet" />
-          )}
-        </div>
-      </section>
-
-      <section className="rounded-xl bg-[var(--color-surface)] p-4">
-        <div className="text-base font-semibold">Relationships</div>
-        <div className="mt-3 space-y-2 text-sm">
-          {Array.isArray(character?.relationships) && character.relationships.length > 0 ? (
-            character.relationships.map((r, idx) => (
-              <div key={`${r.name}-${idx}`} className="flex items-start gap-2">
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-secondary)]" aria-hidden />
-                <span className="flex-1">{r.name} - {r.label}</span>
-              </div>
-            ))
-          ) : (
-            <Placeholder label="No relationships captured yet" />
           )}
         </div>
       </section>

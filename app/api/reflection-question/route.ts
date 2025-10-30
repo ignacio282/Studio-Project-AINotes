@@ -188,12 +188,23 @@ function summarizeNote(summary: StructuredNote): string {
 
 export async function POST(request: Request) {
   try {
+    const url = new URL(request.url);
+    const mock = url.searchParams.get("mock") === "1" || process.env.MOCK_AI === "1" || process.env.NEXT_PUBLIC_MOCK_AI === "1";
+
     const body = (await request.json()) as RequestBody;
     const summary = normalizeStructuredNote(body.summary);
     const topic = sanitizeTopic(body.topic);
     const questionIndex = Number.isInteger(body.questionIndex) ? Number(body.questionIndex) : 0;
     const userResponses = sanitizeList(body.userResponses);
     const askedQuestions = sanitizeList(body.askedQuestions);
+
+    if (mock) {
+      const label = topic.label || "this part";
+      const question = questionIndex === 0
+        ? `What stood out to you about ${label}?`
+        : `What about ${label} feels most important now?`;
+      return Response.json({ question });
+    }
 
     const summaryDigest = summarizeNote(summary) || "No structured notes were captured yet.";
     const responsesDigest =

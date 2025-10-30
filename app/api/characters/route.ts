@@ -10,6 +10,16 @@ export async function GET(req: NextRequest) {
     if (!bookId) {
       return new Response(JSON.stringify({ error: "bookId is required" }), { status: 400 });
     }
+    const mock = searchParams.get("mock") === "1" || process.env.MOCK_AI === "1" || process.env.NEXT_PUBLIC_MOCK_AI === "1";
+    if (mock) {
+      const now = new Date().toISOString();
+      return Response.json({
+        characters: [
+          { id: "1", book_id: bookId, slug: "darrow", name: "Darrow", role: "Rebel miner", short_bio: "A driven leader shaped by hardship.", updated_at: now },
+          { id: "2", book_id: bookId, slug: "mustang", name: "Mustang", role: "Strategist", short_bio: "Brilliant and composed with her own agenda.", updated_at: now },
+        ],
+      });
+    }
     const supabase = getServiceSupabase();
     const { data, error } = await supabase
       .from("characters")
@@ -23,4 +33,3 @@ export async function GET(req: NextRequest) {
     return new Response(JSON.stringify({ error: message }), { status: 500 });
   }
 }
-

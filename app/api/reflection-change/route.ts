@@ -190,15 +190,26 @@ function formatResponses(responses: ReflectionResponse[]): string {
 
 export async function POST(request: Request) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return new Response(JSON.stringify({ error: "Missing OPENAI_API_KEY in environment" }), { status: 500 });
-    }
+    const url = new URL(request.url);
+    const mock = url.searchParams.get("mock") === "1" || process.env.MOCK_AI === "1" || process.env.NEXT_PUBLIC_MOCK_AI === "1";
 
     const body = (await request.json()) as RequestBody;
     const before = sanitizeNote(body.before);
     const after = sanitizeNote(body.after);
     const highlights = normalizeHighlights(body.highlights);
     const responses = normalizeResponses(body.responses);
+
+    if (mock) {
+      const keys = Object.keys(highlights);
+      const summaryText = keys.length > 0
+        ? `You added or refined items in ${keys.join(", ")}.`
+        : "No notable updates were detected.";
+      return Response.json({ summary: summaryText });
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      return new Response(JSON.stringify({ error: "Missing OPENAI_API_KEY in environment" }), { status: 500 });
+    }
 
     const beforeDigest = summarizeStructuredNote(before) || "None";
     const afterDigest = summarizeStructuredNote(after) || "None";

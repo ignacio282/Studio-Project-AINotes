@@ -90,9 +90,8 @@ function aggregateRelationships(name: string, notes: NoteRow[]): { other: string
 
 export async function POST(req: NextRequest) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return new Response(JSON.stringify({ error: "Missing OPENAI_API_KEY" }), { status: 500 });
-    }
+    const url = new URL(req.url);
+    const mock = url.searchParams.get("mock") === "1" || process.env.MOCK_AI === "1" || process.env.NEXT_PUBLIC_MOCK_AI === "1";
     const body = (await req.json()) as { bookId?: unknown; names?: unknown };
     const bookId = typeof body.bookId === "string" ? body.bookId.trim() : "";
     const names = Array.isArray(body.names)
@@ -100,6 +99,14 @@ export async function POST(req: NextRequest) {
       : [];
     if (!bookId) {
       return new Response(JSON.stringify({ error: "bookId is required" }), { status: 400 });
+    }
+
+    if (mock) {
+      return Response.json({ updated: names });
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      return new Response(JSON.stringify({ error: "Missing OPENAI_API_KEY" }), { status: 500 });
     }
 
     const supabase = getServiceSupabase();
