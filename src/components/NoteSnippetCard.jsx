@@ -34,7 +34,7 @@ function NoteBullets({ aiSummary, content }) {
   );
 }
 
-export default function NoteSnippetCard({ bookId, chapter, note }) {
+export default function NoteSnippetCard({ bookId, chapter, note, showLink = true }) {
   const href = note?.id && bookId != null && chapter != null
     ? `/books/${bookId}/chapters/${chapter}/notes/${note.id}`
     : undefined;
@@ -49,7 +49,7 @@ export default function NoteSnippetCard({ bookId, chapter, note }) {
           <div className="mt-3">
             <NoteBullets aiSummary={note.ai_summary} content={note.content} />
           </div>
-          {href ? (
+          {showLink && href ? (
             <div className="mt-3">
               <Link
                 href={href}
