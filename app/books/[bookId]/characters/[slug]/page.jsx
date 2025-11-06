@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import CollapsibleRow from "@/components/ui/CollapsibleRow";
 import NoteSnippetCard from "@/components/NoteSnippetCard";
@@ -52,12 +53,25 @@ export default async function CharacterProfilePage({ params }) {
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl space-y-6 bg-[var(--color-page)] px-6 py-8 text-[var(--color-text-main)]">
+      {/* Top bar / back */}
+      <div className="pt-2">
+        <Link
+          href={`/books/${bookId}`}
+          className="inline-flex items-center gap-2 text-[var(--color-text-main)]"
+        >
+          <svg viewBox="0 0 24 24" className="h-6 w-6" aria-hidden>
+            <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="sr-only">Back to book</span>
+        </Link>
+      </div>
+
       {/* Header */}
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight" style={{ fontFamily: "var(--font-h1)" }}>
           {character?.name || "Unknown"}
         </h1>
-        <div className="text-sm text-[var(--color-secondary)]">{character?.role || "Protagonist"}</div>
+        <div className="text-base text-[var(--color-secondary)]">{character?.role || "Protagonist"}</div>
         {isPopulating && (
           <div className="inline-flex items-center gap-2 rounded-full bg-[var(--color-surface)] px-3 py-1">
             <svg viewBox="0 0 24 24" className="h-3 w-3 animate-spin text-[var(--color-secondary)]" aria-hidden>
@@ -94,13 +108,14 @@ export default async function CharacterProfilePage({ params }) {
               ? `Chapter ${character.first_chapter}`
               : "-"
           }
-          defaultOpen={false}
+          defaultOpen={true}
         >
           <div className="pt-1">
             <NoteSnippetCard
               bookId={bookId}
               chapter={character?.first_chapter}
               note={firstNote}
+              showLink={false}
             />
           </div>
         </CollapsibleRow>
@@ -121,6 +136,7 @@ export default async function CharacterProfilePage({ params }) {
               bookId={bookId}
               chapter={character?.last_chapter}
               note={lastNote}
+              showLink={false}
             />
           </div>
         </CollapsibleRow>
@@ -149,7 +165,9 @@ export default async function CharacterProfilePage({ params }) {
                   aria-hidden
                 />
                 <div className="caption">Chapter {t.chapterNumber}</div>
-                <div className="mt-1 text-[var(--color-text-main)]">{t.snippet}</div>
+                <div className="mt-1 text-[var(--color-text-main)] italic line-clamp-1">
+                  “{t?.snippet?.replace(/^["“”]+|["“”]+$/g, "").trim()}”
+                </div>
               </div>
             ))
           ) : (
@@ -160,4 +178,3 @@ export default async function CharacterProfilePage({ params }) {
     </div>
   );
 }
-
