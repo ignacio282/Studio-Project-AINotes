@@ -1729,6 +1729,19 @@ export default function JournalingPage() {
   const [characterSheet, setCharacterSheet] = useState({ name: "", role: "", shortBio: "", slug: "" });
   const [isCharacterLoading, setIsCharacterLoading] = useState(false);
 
+  // Adopt a book selected/created in the Book form
+  useEffect(() => {
+    try {
+      const id = localStorage.getItem("rc.currentBookId");
+      const isUuid = typeof id === "string" && /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(id);
+      if (isUuid) {
+        setSession((prev) => ({ ...prev, bookId: id }));
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
