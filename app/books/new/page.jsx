@@ -56,7 +56,7 @@ export default function NewBookPage() {
         try {
           localStorage.setItem("rc.currentBookId", id);
         } catch {}
-        router.push("/");
+        router.push(`/books/${encodeURIComponent(id)}/journal`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
