@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import CollapsibleRow from "@/components/ui/CollapsibleRow";
 import NoteSnippetCard from "@/components/NoteSnippetCard";
+import BackArrowIcon from "@/components/BackArrowIcon";
 
 export const dynamic = "force-dynamic";
 
@@ -59,9 +60,7 @@ export default async function CharacterProfilePage({ params }) {
           href={`/books/${bookId}`}
           className="inline-flex items-center gap-2 text-[var(--color-text-main)]"
         >
-          <svg viewBox="0 0 24 24" className="h-6 w-6" aria-hidden>
-            <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <BackArrowIcon className="h-6 w-6 text-[var(--color-text-main)]" />
           <span className="sr-only">Back to book</span>
         </Link>
       </div>

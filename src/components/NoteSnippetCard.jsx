@@ -12,32 +12,47 @@ function formatDateTime(iso) {
   }
 }
 
-function NoteBullets({ aiSummary, content }) {
-  let bullets = [];
-  if (aiSummary && typeof aiSummary === "object") {
-    if (Array.isArray(aiSummary?.bullets)) bullets = aiSummary.bullets;
-    if (!bullets.length && Array.isArray(aiSummary)) bullets = aiSummary;
+function buildNotePreview(aiSummary, content, maxLength = 150) {
+  let text =
+    typeof content === "string" ? content.replace(/\s+/g, " ").trim() : "";
+
+  if (!text && aiSummary) {
+    if (typeof aiSummary === "string") {
+      text = aiSummary;
+    } else if (typeof aiSummary === "object") {
+      const blocks = [];
+      if (Array.isArray(aiSummary.summary)) blocks.push(...aiSummary.summary);
+      if (Array.isArray(aiSummary.bullets)) blocks.push(...aiSummary.bullets);
+      if (!blocks.length && Array.isArray(aiSummary)) blocks.push(...aiSummary);
+      text = blocks
+        .map((v) => (typeof v === "string" ? v : JSON.stringify(v)))
+        .join(" ");
+    }
+    text = (text || "").replace(/\s+/g, " ").trim();
   }
-  if (!bullets.length && typeof content === "string") {
-    const sentences = content.split(/(?<=[.!?])\s+/).slice(0, 2);
-    bullets = sentences.filter(Boolean);
-  }
-  if (!bullets.length) return null;
+
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+  const sliced = text.slice(0, maxLength);
+  const withoutPartial = sliced.replace(/\s+\S*$/, "");
+  const base = withoutPartial.trim() || sliced.trim();
+  return `${base} (...)`;
+}
+
+function NotePreview({ aiSummary, content }) {
+  const preview = buildNotePreview(aiSummary, content);
+  if (!preview) return <Placeholder label="No content yet" />;
   return (
-    <ul className="list-disc space-y-1 pl-5 text-[var(--color-text-main)]">
-      {bullets.map((b, i) => (
-        <li key={i} className="text-sm leading-6">
-          {typeof b === "string" ? b : JSON.stringify(b)}
-        </li>
-      ))}
-    </ul>
+    <p className="text-sm leading-6 text-[var(--color-text-main)]">{preview}</p>
   );
 }
 
 export default function NoteSnippetCard({ bookId, chapter, note, showLink = true }) {
-  const href = note?.id && bookId != null && chapter != null
-    ? `/books/${bookId}/chapters/${chapter}/notes/${note.id}`
-    : undefined;
+  const href =
+    note?.id && bookId != null && chapter != null
+      ? `/books/${bookId}/chapters/${chapter}/notes/${note.id}`
+      : undefined;
+
   return (
     <div className="rounded-xl bg-[var(--color-page)] p-4">
       {note ? (
@@ -47,7 +62,7 @@ export default function NoteSnippetCard({ bookId, chapter, note, showLink = true
           </div>
           <div className="mt-1 text-sm text-[var(--color-secondary)]">Note captured</div>
           <div className="mt-3">
-            <NoteBullets aiSummary={note.ai_summary} content={note.content} />
+            <NotePreview aiSummary={note.ai_summary} content={note.content} />
           </div>
           {showLink && href ? (
             <div className="mt-3">
@@ -68,7 +83,7 @@ export default function NoteSnippetCard({ bookId, chapter, note, showLink = true
             <div className="h-4 w-11/12 animate-pulse rounded bg-[color:var(--rc-color-text-secondary)/15%]" />
             <div className="h-4 w-10/12 animate-pulse rounded bg-[color:var(--rc-color-text-secondary)/15%]" />
           </div>
-          <div className="caption pt-1 text-[var(--color-secondary)]">Populating from your notes…</div>
+          <div className="caption pt-1 text-[var(--color-secondary)]">Populating from your notes...</div>
         </div>
       )}
     </div>
