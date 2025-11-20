@@ -6,6 +6,15 @@ const nextConfig: NextConfig = {
     // ESLint warnings/errors. This is helpful for rapid demos.
     ignoreDuringBuilds: true,
   },
+  async redirects() {
+    return [
+      {
+        source: "/",
+        destination: "/home",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
