@@ -33,7 +33,12 @@ function extractFields(ai: unknown): { characters: string[]; relationships: stri
   const base = { characters: [] as string[], relationships: [] as string[], summary: [] as string[] };
   if (!ai || typeof ai !== "object") return base;
   const rec = ai as { characters?: unknown; relationships?: unknown; summary?: unknown };
-  const toList = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").map((s) => (s as string).trim()) : []);
+  const toList = (v: unknown) =>
+    Array.isArray(v)
+      ? v
+          .filter((x: unknown): x is string => typeof x === "string")
+          .map((s) => s.trim())
+      : [];
   return {
     characters: toList(rec.characters),
     relationships: toList(rec.relationships),
