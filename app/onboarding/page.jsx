@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 
 const SLIDES = [
   {
-    title: "Welcome to {App Name}",
+    title: "Welcome to Your AI Reading Assistant",
     subtitle: "Your reading companion to make stories easier to follow, remember, and enjoy.",
   },
   {
@@ -21,23 +21,30 @@ const SLIDES = [
 function Dots({ index, count }) {
   return (
     <div className="flex items-center justify-center gap-2">
-      {Array.from({ length: count }).map((_, i) => (
-        <span
-          // eslint-disable-next-line react/no-array-index-key
-          key={i}
-          className={
-            "h-2 w-2 rounded-full " + (i === index ? "bg-[var(--color-text-accent)]" : "bg-[color:var(--rc-color-text-secondary)/40%]")
-          }
-        />
-      ))}
+      {Array.from({ length: count }).map((_, i) => {
+        const isActive = i === index;
+        return (
+          <span
+            // eslint-disable-next-line react/no-array-index-key
+            key={i}
+            className={
+              "h-2.5 w-2.5 rounded-full " +
+              (isActive ? "bg-[var(--color-text-accent)]" : "bg-[var(--color-text-disabled)]")
+            }
+          />
+        );
+      })}
     </div>
   );
 }
 
 function BulletRow({ label }) {
   return (
-    <div className="flex items-center gap-3">
-      <span className="h-6 w-6 rounded-full bg-[color:var(--rc-color-text-secondary)/30%]" aria-hidden />
+    <div className="flex items-center gap-4">
+      <span
+        className="h-10 w-10 rounded-2xl bg-[var(--color-surface)]"
+        aria-hidden
+      />
       <span className="text-[var(--color-text-main)]">{label}</span>
     </div>
   );
@@ -86,7 +93,7 @@ export default function OnboardingPage() {
       {/* Slides (swipe with scroll snap) */}
       <div
         ref={scrollerRef}
-        className="flex flex-1 snap-x snap-mandatory overflow-x-auto scroll-smooth"
+        className="no-scrollbar flex flex-1 snap-x snap-mandatory overflow-x-auto scroll-smooth"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         {SLIDES.map((slide, i) => (
@@ -115,28 +122,28 @@ export default function OnboardingPage() {
       </div>
 
       {/* Footer controls (dots + CTA) */}
-      <div className="mt-6 flex flex-col items-center gap-6 pb-4">
+      <div className="mt-6 flex flex-col items-center gap-6 pb-6">
         <Dots index={index} count={SLIDES.length} />
 
-        {index < SLIDES.length - 1 ? (
-          <button
-            type="button"
-            onClick={onNext}
-            className="text-[var(--color-text-accent)]"
-          >
-            Next
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onNext}
-            className="w-full rounded-xl bg-[var(--color-accent)] px-5 py-3 text-center text-[var(--color-text-on-accent)]"
-          >
-            Let's begin
-          </button>
-        )}
-
-
+        <div className="flex w-full items-center justify-center">
+          {index < SLIDES.length - 1 ? (
+            <button
+              type="button"
+              onClick={onNext}
+              className="h-12 w-full max-w-[160px] rounded-xl bg-transparent text-center text-[var(--color-text-accent)]"
+            >
+              Next
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onNext}
+              className="h-12 w-full rounded-xl bg-[var(--color-accent)] px-5 text-center text-[var(--color-text-on-accent)]"
+            >
+              Let's begin
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import BackArrowIcon from "@/components/BackArrowIcon";
 
 const AI_ENDPOINT =
   process.env.NEXT_PUBLIC_AI_ENDPOINT || "/api/ai-reply";
@@ -459,21 +461,6 @@ function SummarySectionStack({ summary, highlights = {}, showPlaceholders = fals
         />
       ))}
     </div>
-  );
-}
-
-function BackArrowIcon() {
-  return (
-    <svg
-      className="h-5 w-5 text-[var(--color-text-accent)]"
-      viewBox="0 0 20 20"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <path d="M11.5 5l-5 5 5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M6.5 10H15" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
 
@@ -1682,7 +1669,17 @@ function ChevronDown({ open }) {
 }
 
 // Main journaling surface: header, transcript, composer, and summary toggle
-export default function JournalingPage() {
+export default function JournalingPage(props) {
+  const initialBookId = props?.initialBookId;
+  const initialBookTitle = props?.initialBookTitle;
+  const initialChapterNumberRaw = props?.initialChapterNumber;
+  const initialChapterTitle = props?.initialChapterTitle;
+  const initialChapterNumber =
+    typeof initialChapterNumberRaw === "number" && Number.isFinite(initialChapterNumberRaw)
+      ? initialChapterNumberRaw
+      : undefined;
+  const router = useRouter();
+
   // Local state: message history, structured summary, and UI flags
   const [messages, setMessages] = useState(() => [
     {
@@ -1697,6 +1694,14 @@ export default function JournalingPage() {
   const [isComposerLocked, setIsComposerLocked] = useState(true);
   const [session, setSession] = useState(() => ({
     ...sessionTemplate,
+    bookId: typeof initialBookId === "string" && initialBookId ? initialBookId : sessionTemplate.bookId,
+    bookTitle:
+      typeof initialBookTitle === "string" && initialBookTitle ? initialBookTitle : sessionTemplate.bookTitle,
+    chapterNumber: initialChapterNumber,
+    chapterTitle:
+      typeof initialChapterTitle === "string" && initialChapterTitle
+        ? initialChapterTitle
+        : sessionTemplate.chapterTitle,
     notes: [...sessionTemplate.notes],
     summary: createEmptySummary(),
   }));
@@ -1731,16 +1736,27 @@ export default function JournalingPage() {
 
   // Adopt a book selected/created in the Book form
   useEffect(() => {
-    try {
-      const id = localStorage.getItem("rc.currentBookId");
-      const isUuid = typeof id === "string" && /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(id);
+    const adoptBookId = (id) => {
+      const isUuid =
+        typeof id === "string" &&
+        /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(id);
       if (isUuid) {
         setSession((prev) => ({ ...prev, bookId: id }));
       }
+    };
+
+    if (initialBookId) {
+      adoptBookId(initialBookId);
+      return;
+    }
+
+    try {
+      const storedId = localStorage.getItem("rc.currentBookId");
+      adoptBookId(storedId);
     } catch {
       // ignore storage errors
     }
-  }, []);
+  }, [initialBookId]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -2344,7 +2360,18 @@ export default function JournalingPage() {
     setFlowStep(FLOW_STATES.REFLECTION);
   };
 
-  const handleFinishSession = () => {};
+  const handleFinishSession = () => {
+    const bookId = session?.bookId;
+    const isUuid =
+      typeof bookId === "string" &&
+      /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(bookId);
+
+    if (isUuid) {
+      router.push(`/books/${encodeURIComponent(bookId)}`);
+    } else {
+      router.push("/home");
+    }
+  };
 
   const handleStartNewNoteFlow = () => {
     if (reflectionTimerRef.current) {
@@ -2936,10 +2963,20 @@ export default function JournalingPage() {
       {/* Top app bar with session context and completion affordance */}
       <header className="sticky top-0 z-30 border-b border-[var(--color-accent-subtle)] bg-[var(--color-text-on-accent)] px-6 py-5">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
-          <div>
-            <div className="text-xs text-[var(--color-secondary)]">{session.bookTitle}</div>
-            <div className="text-2xl font-medium" style={{ fontFamily: "var(--font-h2)" }}>
-              {session.chapterTitle}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleFinishSession}
+              className="flex items-center justify-center rounded-full p-1.5 text-[var(--color-text-main)] transition hover:text-[var(--color-text-main)]/80"
+              aria-label="Back to book"
+            >
+              <BackArrowIcon className="h-5 w-5 text-[var(--color-text-main)]" />
+            </button>
+            <div>
+              <div className="text-xs text-[var(--color-secondary)]">{session.bookTitle}</div>
+              <div className="text-2xl font-medium" style={{ fontFamily: "var(--font-h2)" }}>
+                {session.chapterTitle}
+              </div>
             </div>
           </div>
           <button

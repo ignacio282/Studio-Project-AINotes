@@ -2,20 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-
-function BackArrow({ onClick }) {
-  return (
-    <button type="button" onClick={onClick} aria-label="Go back" className="mr-2 text-[var(--color-text-main)]">
-      <svg viewBox="0 0 24 24" className="h-6 w-6" aria-hidden>
-        <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </button>
-  );
-}
+import { getBrowserSupabase } from "@/lib/supabase/client";
+import BackArrowIcon from "@/components/BackArrowIcon";
 
 export default function NewBookPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ title: "", author: "", publisher: "", chapters: "" });
+  const [form, setForm] = useState({
+    title: "",
+    author: "",
+    publisher: "",
+    chapters: "",
+    coverUrl: "",
+  });
+  const [coverFile, setCoverFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,17 +23,68 @@ export default function NewBookPage() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const onCoverFileChange = (e) => {
+    const file = e.target?.files?.[0];
+    if (!file) {
+      setForm((prev) => ({ ...prev, coverUrl: "" }));
+      setCoverFile(null);
+      return;
+    }
+    // Lightweight guard to avoid very large inline images
+    const maxBytes = 2 * 1024 * 1024; // 2MB
+    if (file.size > maxBytes) {
+      setError("Cover image is too large. Please pick a file under 2MB.");
+      return;
+    }
+    setCoverFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result;
+      if (typeof result === "string") {
+        setForm((prev) => ({ ...prev, coverUrl: result }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   async function onSubmit(e) {
     e.preventDefault();
     setSubmitting(true);
     setError("");
     try {
+      let uploadedCoverUrl;
+      if (coverFile) {
+        const supabase = getBrowserSupabase();
+        const ext =
+          typeof coverFile.name === "string" && coverFile.name.includes(".")
+            ? coverFile.name.split(".").pop().toLowerCase()
+            : "jpg";
+        const idPart =
+          typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+            ? crypto.randomUUID()
+            : Math.random().toString(36).slice(2, 11);
+        const filePath = `covers/${idPart}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("book-covers")
+          .upload(filePath, coverFile, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+        if (uploadError) {
+          throw uploadError;
+        }
+        const { data } = supabase.storage.from("book-covers").getPublicUrl(filePath);
+        uploadedCoverUrl = data?.publicUrl || undefined;
+      }
+
       const totalChapters = form.chapters ? Number(form.chapters) : undefined;
       const payload = {
         title: form.title,
         author: form.author,
         publisher: form.publisher || undefined,
         totalChapters: Number.isFinite(totalChapters) && totalChapters > 0 ? totalChapters : undefined,
+        coverUrl: uploadedCoverUrl || undefined,
         status: "reading",
       };
       const res = await fetch("/api/books", {
@@ -56,7 +106,7 @@ export default function NewBookPage() {
         try {
           localStorage.setItem("rc.currentBookId", id);
         } catch {}
-        router.push(`/books/${encodeURIComponent(id)}/journal`);
+        router.push("/home");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -68,7 +118,14 @@ export default function NewBookPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-[var(--color-page)] px-6 py-6 text-[var(--color-text-main)]">
       <header className="mb-6 flex items-center">
-        <BackArrow onClick={() => router.back()} />
+        <button
+          type="button"
+          onClick={() => router.back()}
+          aria-label="Go back"
+          className="mr-2 text-[var(--color-text-main)]"
+        >
+          <BackArrowIcon className="h-6 w-6 text-[var(--color-text-main)]" />
+        </button>
         <h1 className="text-2xl font-semibold" style={{ fontFamily: "var(--font-h1)" }}>
           Add a book
         </h1>
@@ -109,6 +166,21 @@ export default function NewBookPage() {
               onChange={onChange}
               className="mt-1 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/35%] bg-white/80 px-4 py-3 outline-none"
             />
+          </div>
+          <div>
+            <label className="block text-sm text-[var(--color-secondary)]">Cover image</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={onCoverFileChange}
+              className="mt-1 block w-full text-sm text-[var(--color-secondary)] file:mr-3 file:rounded-xl file:border file:border-[color:var(--rc-color-text-secondary)/35%] file:bg-white/80 file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--color-text-main)]"
+            />
+            {form.coverUrl ? (
+              <div className="mt-3 h-32 w-24 overflow-hidden rounded-xl bg-white/60">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={form.coverUrl} alt="Book cover preview" className="h-full w-full object-cover" />
+              </div>
+            ) : null}
           </div>
           <div>
             <label className="block text-sm text-[var(--color-secondary)]"># of chapters</label>
