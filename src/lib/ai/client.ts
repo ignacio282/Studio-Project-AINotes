@@ -1,4 +1,4 @@
-export type AiUseCase = "journal" | "reflection" | "change" | "characters";
+export type AiUseCase = "journal" | "reflection" | "change" | "characters" | "assistant";
 
 type AiConfig = {
   model: string;
@@ -33,6 +33,11 @@ export function getAiConfig(useCase: AiUseCase): AiConfig {
       return {
         model: process.env.AI_MODEL_CHARACTERS || "gpt-5-nano",
         maxOutputTokens: intFromEnv("AI_MAX_TOKENS_CHARACTERS", 900),
+      };
+    case "assistant":
+      return {
+        model: process.env.AI_MODEL_ASSISTANT || "gpt-5-nano",
+        maxOutputTokens: intFromEnv("AI_MAX_TOKENS_ASSISTANT", 800),
       };
     default:
       return { model: "gpt-5-nano", maxOutputTokens: 1000 };

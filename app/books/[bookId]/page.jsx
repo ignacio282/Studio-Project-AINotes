@@ -144,6 +144,19 @@ export default async function BookHubPage({ params }) {
         </div>
       </section>
 
+      <section className="rounded-2xl bg-[var(--color-surface)] p-4">
+        <div className="text-lg font-semibold">AI Assistant</div>
+        <div className="mt-1 text-sm text-[var(--color-secondary)]">
+          Ask about characters, places, or moments using only your notes up to the latest chapter.
+        </div>
+        <Link
+          href={`/books/${bookId}/assistant`}
+          className="mt-4 inline-flex items-center justify-center rounded-full bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-[var(--color-text-on-accent)] transition hover:bg-[var(--color-accent-hover)]"
+        >
+          Open assistant
+        </Link>
+      </section>
+
       {/* Notes section */}
       <section>
         <div
