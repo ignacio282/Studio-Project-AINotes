@@ -55,7 +55,8 @@ export default function BookChapterStartSheet({
         type="button"
         onClick={() => setOpen(true)}
         disabled={!hasValidBook}
-        className="block w-full rounded-2xl bg-[var(--color-accent)] px-5 py-4 text-center text-[var(--color-text-on-accent)] disabled:cursor-not-allowed disabled:opacity-60"
+        className="block w-full rounded-2xl bg-[var(--color-accent)] px-5 py-4 text-center text-sm font-medium text-[var(--color-text-on-accent)] disabled:cursor-not-allowed disabled:opacity-60"
+        style={{ fontFamily: "var(--font-title)" }}
       >
         Write a note
       </button>
@@ -133,11 +134,12 @@ export default function BookChapterStartSheet({
                 type="button"
                 onClick={handleStart}
                 disabled={startDisabled}
-                className={`mt-4 w-full rounded-2xl px-5 py-3 text-base font-semibold ${
+                className={`mt-4 w-full rounded-2xl px-5 py-3 text-sm font-medium ${
                   startDisabled
                     ? "cursor-not-allowed bg-[color:var(--rc-color-accent-subtle)/35%] text-[var(--color-secondary)]"
                     : "bg-[var(--color-accent)] text-[var(--color-text-on-accent)]"
                 }`}
+                style={{ fontFamily: "var(--font-title)" }}
               >
                 Start
               </button>

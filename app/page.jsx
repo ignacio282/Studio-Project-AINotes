@@ -1946,6 +1946,23 @@ export default function JournalingPage(props) {
         } catch {
           // non-blocking
         }
+
+        try {
+          const chapterNumber = getChapterNumberFromSession(session);
+          const bookId = session.bookId;
+          const isUuid =
+            typeof bookId === "string" &&
+            /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(bookId);
+          if (isUuid && Number.isFinite(chapterNumber) && chapterNumber > 0) {
+            await fetch(`/api/books/${encodeURIComponent(bookId)}/chapter-memory`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chapterNumber, summary: normalizedSummary }),
+            });
+          }
+        } catch {
+          // non-blocking
+        }
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
