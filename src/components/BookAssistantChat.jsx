@@ -11,26 +11,27 @@ function safeId() {
 
 function ChatMessage({ message, onAction }) {
   const isAssistant = message.role === "assistant";
-  const alignment = isAssistant ? "justify-start" : "justify-end";
-  const bubbleClass = isAssistant
-    ? "bg-transparent text-[var(--color-text-main)]"
-    : "bg-[var(--color-surface)] text-[var(--color-text-main)]";
+  const fullWidth = message.fullWidth === true;
   const actions = Array.isArray(message.actions)
     ? message.actions.filter((action) => action && typeof action.label === "string")
     : [];
 
   return (
-    <div className={`flex ${alignment}`}>
-      <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-6 ${bubbleClass}`}>
+    <div className={`assistant-message-row ${isAssistant ? "" : "assistant-align-end"}`}>
+      <div
+        className={`assistant-message ${
+          isAssistant ? "assistant-message--assistant" : "assistant-message--user"
+        } ${fullWidth ? "assistant-message--full" : ""}`}
+      >
         <div className="whitespace-pre-wrap">{message.content}</div>
         {isAssistant && actions.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="assistant-actions">
             {actions.map((action) => (
               <button
                 key={action.id || action.label}
                 type="button"
                 onClick={() => onAction && onAction(action)}
-                className="rounded-full bg-[var(--color-accent-subtle)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-accent)] transition hover:bg-[var(--color-accent-subtle)]/80"
+                className="assistant-action-button"
               >
                 {action.label}
               </button>
@@ -45,7 +46,7 @@ function ChatMessage({ message, onAction }) {
 function TypingIndicator() {
   return (
     <div className="flex justify-start">
-      <div className="rounded-2xl bg-[var(--color-surface)] px-4 py-2 text-sm text-[var(--color-secondary)]">
+      <div className="assistant-message assistant-message--user text-[var(--color-secondary)]">
         Thinking...
       </div>
     </div>
@@ -57,7 +58,8 @@ export default function BookAssistantChat({ bookId, bookTitle }) {
     {
       id: safeId(),
       role: "assistant",
-      content: `I am your book assistant for ${bookTitle || "this book"}. Ask me about characters, places, or moments based on your notes so far.`,
+      fullWidth: true,
+      content: `Hi! I am your AI book assistant. You can ask me about characters, places, or moments. I will answer using only your notes up through the latest chapter you have logged.\n\nYou can ask me questions like:\n• Who was X character again?\n• Is this character related to this other?\n• Can you give me a summary of everything I have noted until now`,
     },
   ]);
   const [inputValue, setInputValue] = useState("");
@@ -258,43 +260,44 @@ export default function BookAssistantChat({ bookId, bookTitle }) {
   };
 
   return (
-    <div className="flex h-[calc(100vh-220px)] flex-col rounded-2xl bg-[var(--color-page)]">
-      <div
-        ref={scrollRef}
-        className="flex-1 space-y-4 overflow-y-auto rounded-2xl bg-[var(--color-surface)] p-4"
-      >
-        {messages.map((message) => (
-          <ChatMessage key={message.id} message={message} onAction={handleAction} />
-        ))}
-        {isLoading ? <TypingIndicator /> : null}
+    <div className="assistant-chat">
+      <div ref={scrollRef} className="assistant-scroll">
+        <div className="assistant-scroll-inner">
+          {messages.map((message) => (
+            <ChatMessage key={message.id} message={message} onAction={handleAction} />
+          ))}
+          {isLoading ? <TypingIndicator /> : null}
+        </div>
       </div>
-      <form onSubmit={handleSubmit} className="mt-4 space-y-2">
-        {error ? <div className="text-xs text-red-500">{error}</div> : null}
-        <div className="flex items-end gap-2 rounded-xl bg-[var(--color-surface)] px-3 py-2">
-          <textarea
-            value={inputValue}
-            onChange={(event) => setInputValue(event.target.value)}
-            onKeyDown={handleKeyDown}
-            rows={1}
-            placeholder="Ask about a character, place, or moment..."
-            className="h-10 flex-1 resize-none bg-transparent text-sm leading-6 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)]"
-            disabled={isLoading}
-          />
-          <button
-            type="submit"
-            className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-accent)] text-[var(--color-text-on-accent)] transition hover:bg-[var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isLoading || !inputValue.trim()}
-            aria-label="Send question"
-          >
-            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M3.75 3.75l12.5 6.25-12.5 6.25 2.5-6.25-2.5-6.25z"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+      <form onSubmit={handleSubmit} className="assistant-input-bar">
+        <div className="assistant-input-inner">
+          {error ? <div className="text-xs text-red-500 mb-2">{error}</div> : null}
+          <div className="assistant-input-row">
+            <textarea
+              value={inputValue}
+              onChange={(event) => setInputValue(event.target.value)}
+              onKeyDown={handleKeyDown}
+              rows={1}
+              placeholder="Ask about characters, places, moments"
+              className="assistant-textarea"
+              disabled={isLoading}
+            />
+            <button
+              type="submit"
+              className="assistant-send"
+              disabled={isLoading || !inputValue.trim()}
+              aria-label="Send question"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M3.75 3.75l12.5 6.25-12.5 6.25 2.5-6.25-2.5-6.25z"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
       </form>
 
