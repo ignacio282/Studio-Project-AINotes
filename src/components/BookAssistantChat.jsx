@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 function safeId() {
@@ -9,12 +10,59 @@ function safeId() {
   return Math.random().toString(36).slice(2, 11);
 }
 
-function ChatMessage({ message, onAction }) {
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function renderEntityLinks(text, entities, bookId) {
+  if (!text || !Array.isArray(entities) || entities.length === 0 || !bookId) {
+    return text;
+  }
+  const entries = entities
+    .map((entry) => ({
+      name: typeof entry?.name === "string" ? entry.name.trim() : "",
+      slug: typeof entry?.slug === "string" ? entry.slug.trim() : "",
+    }))
+    .filter((entry) => entry.name && entry.slug)
+    .sort((a, b) => b.name.length - a.name.length);
+  if (entries.length === 0) return text;
+  const nameMap = new Map(entries.map((entry) => [entry.name.toLowerCase(), entry]));
+  const pattern = new RegExp(`\\b(${entries.map((e) => escapeRegExp(e.name)).join("|")})\\b`, "gi");
+  const parts = text.split(pattern);
+  return parts.map((part, idx) => {
+    const match = nameMap.get(part.toLowerCase());
+    if (!match) return <span key={`${part}-${idx}`}>{part}</span>;
+    return (
+      <Link
+        key={`${match.slug}-${idx}`}
+        href={`/books/${bookId}/characters/${match.slug}`}
+        className="assistant-entity-link"
+      >
+        {part}
+      </Link>
+    );
+  });
+}
+
+function formatSources(raw) {
+  const list = Array.isArray(raw)
+    ? Array.from(new Set(raw.filter((n) => Number.isFinite(n)).map((n) => Number(n))))
+    : [];
+  const sorted = list.sort((a, b) => a - b);
+  if (sorted.length === 0) return "";
+  return `Sources: chapters ${sorted.join(", ")}`;
+}
+
+function ChatMessage({ message, onAction, entities, bookId }) {
   const isAssistant = message.role === "assistant";
   const fullWidth = message.fullWidth === true;
+  const sourcesLabel = formatSources(message.sources);
   const actions = Array.isArray(message.actions)
     ? message.actions.filter((action) => action && typeof action.label === "string")
     : [];
+  const content = typeof message.content === "string" ? message.content : "";
+  const linkedContent = isAssistant ? renderEntityLinks(content, entities, bookId) : content;
+  const sections = message.sections || null;
 
   return (
     <div className={`assistant-message-row ${isAssistant ? "" : "assistant-align-end"}`}>
@@ -23,7 +71,37 @@ function ChatMessage({ message, onAction }) {
           isAssistant ? "assistant-message--assistant" : "assistant-message--user"
         } ${fullWidth ? "assistant-message--full" : ""}`}
       >
-        <div className="whitespace-pre-wrap">{message.content}</div>
+        {sections ? (
+          <>
+            <div className="assistant-section">
+              <div className="assistant-section-title">Summary</div>
+              <div className="assistant-section-body whitespace-pre-wrap">{linkedContent}</div>
+            </div>
+            {Array.isArray(sections.evidence) && sections.evidence.length > 0 ? (
+              <div className="assistant-section">
+                <div className="assistant-section-title">Evidence</div>
+                <ul className="assistant-section-list">
+                  {sections.evidence.map((item, index) => (
+                    <li key={`${item}-${index}`}>{renderEntityLinks(item, entities, bookId)}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {Array.isArray(sections.relationships) && sections.relationships.length > 0 ? (
+              <div className="assistant-section">
+                <div className="assistant-section-title">Relationships</div>
+                <ul className="assistant-section-list">
+                  {sections.relationships.map((item, index) => (
+                    <li key={`${item}-${index}`}>{renderEntityLinks(item, entities, bookId)}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="whitespace-pre-wrap">{linkedContent}</div>
+        )}
+        {sourcesLabel ? <div className="assistant-sources">{sourcesLabel}</div> : null}
         {isAssistant && actions.length > 0 ? (
           <div className="assistant-actions">
             {actions.map((action) => (
@@ -53,13 +131,13 @@ function TypingIndicator() {
   );
 }
 
-export default function BookAssistantChat({ bookId, bookTitle }) {
+export default function BookAssistantChat({ bookId }) {
   const [messages, setMessages] = useState(() => [
     {
       id: safeId(),
       role: "assistant",
       fullWidth: true,
-      content: `Hi! I am your AI book assistant. You can ask me about characters, places, or moments. I will answer using only your notes up through the latest chapter you have logged.\n\nYou can ask me questions like:\n• Who was X character again?\n• Is this character related to this other?\n• Can you give me a summary of everything I have noted until now`,
+      content: `Hi! I am your AI book assistant. You can ask me about characters, places, or moments. I will answer using only your notes up through the latest chapter you have logged.\n\nYou can ask me questions like:\n- Who was X character again?\n- Is this character related to this other?\n- Can you give me a summary of everything I have noted until now`,
     },
   ]);
   const [inputValue, setInputValue] = useState("");
@@ -70,12 +148,54 @@ export default function BookAssistantChat({ bookId, bookTitle }) {
   const [promptResponse, setPromptResponse] = useState("");
   const [promptError, setPromptError] = useState("");
   const [promptSaving, setPromptSaving] = useState(false);
+  const [entities, setEntities] = useState([]);
+  const [scopeChapter, setScopeChapter] = useState(null);
   const scrollRef = useRef(null);
 
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    let active = true;
+    const loadEntities = async () => {
+      try {
+        const res = await fetch(`/api/characters?bookId=${encodeURIComponent(bookId)}`);
+        if (!res.ok) return;
+        const payload = await res.json();
+        const list = Array.isArray(payload?.characters) ? payload.characters : [];
+        if (active) {
+          setEntities(list);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    const loadScope = async () => {
+      try {
+        const res = await fetch(`/api/notes?bookId=${encodeURIComponent(bookId)}`);
+        if (!res.ok) return;
+        const payload = await res.json();
+        const notes = Array.isArray(payload?.notes) ? payload.notes : [];
+        const max = notes.reduce((acc, note) => {
+          const chapter = Number(note?.chapter_number);
+          if (Number.isFinite(chapter) && chapter > acc) return chapter;
+          return acc;
+        }, 0);
+        if (active && max > 0) setScopeChapter(max);
+      } catch {
+        // ignore
+      }
+    };
+    if (bookId) {
+      loadEntities();
+      loadScope();
+    }
+    return () => {
+      active = false;
+    };
+  }, [bookId]);
 
   const createEmptySummary = () => ({
     summary: [],
@@ -161,13 +281,32 @@ export default function BookAssistantChat({ bookId, bookTitle }) {
       const payload = await res.json();
       const answer = typeof payload?.answer === "string" ? payload.answer.trim() : "";
       const actions = Array.isArray(payload?.actions) ? payload.actions : [];
-      if (!answer) {
+      const structured = payload?.structured && typeof payload.structured === "object" ? payload.structured : null;
+      if (!answer && !(structured && typeof structured.summary === "string")) {
         throw new Error("The assistant did not return a reply.");
       }
       setMessages((prev) => [
         ...prev,
-        { id: safeId(), role: "assistant", content: answer, actions },
+        {
+          id: safeId(),
+          role: "assistant",
+          fullWidth: true,
+          content: typeof structured?.summary === "string" ? structured.summary : answer,
+          actions,
+          sources: Array.isArray(payload?.sources) ? payload.sources : [],
+          sections: structured
+            ? {
+                evidence: Array.isArray(structured?.evidence) ? structured.evidence : [],
+                relationships: Array.isArray(structured?.relationships)
+                  ? structured.relationships
+                  : [],
+              }
+            : null,
+        },
       ]);
+      if (Number.isFinite(payload?.maxChapter)) {
+        setScopeChapter(payload.maxChapter);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong.";
       setError(message);
@@ -176,6 +315,7 @@ export default function BookAssistantChat({ bookId, bookTitle }) {
         {
           id: safeId(),
           role: "assistant",
+          fullWidth: true,
           content: "I hit a snag while checking your notes. Try again in a moment.",
         },
       ]);
@@ -247,6 +387,7 @@ export default function BookAssistantChat({ bookId, bookTitle }) {
         {
           id: safeId(),
           role: "assistant",
+          fullWidth: true,
           content: "Got it. I added that to your notes and folded it into the book memory.",
         },
       ]);
@@ -263,8 +404,17 @@ export default function BookAssistantChat({ bookId, bookTitle }) {
     <div className="assistant-chat">
       <div ref={scrollRef} className="assistant-scroll">
         <div className="assistant-scroll-inner">
+          {scopeChapter ? (
+            <div className="assistant-scope">Using notes up through chapter {scopeChapter}</div>
+          ) : null}
           {messages.map((message) => (
-            <ChatMessage key={message.id} message={message} onAction={handleAction} />
+            <ChatMessage
+              key={message.id}
+              message={message}
+              onAction={handleAction}
+              entities={entities}
+              bookId={bookId}
+            />
           ))}
           {isLoading ? <TypingIndicator /> : null}
         </div>
