@@ -167,6 +167,43 @@ function normalizeSummary(summary: unknown) {
   };
 }
 
+function tryParseJson(raw: string): unknown {
+  const text = (raw || "").trim();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    const fenced = text.match(/```json\s*([\s\S]*?)```/i) ?? text.match(/```\s*([\s\S]*?)```/);
+    if (fenced) {
+      try {
+        return JSON.parse(fenced[1]);
+      } catch {
+        // ignore
+      }
+    }
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start !== -1 && end > start) {
+      try {
+        return JSON.parse(text.slice(start, end + 1));
+      } catch {
+        // ignore
+      }
+    }
+  }
+  return null;
+}
+
+function normalizeStructured(raw: unknown): { summary: string; evidence: string[]; relationships: string[] } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const rec = raw as { summary?: unknown; evidence?: unknown; relationships?: unknown };
+  const summary = typeof rec.summary === "string" ? rec.summary.trim() : "";
+  const evidence = toStringList(rec.evidence);
+  const relationships = toStringList(rec.relationships);
+  if (!summary) return null;
+  return { summary, evidence, relationships };
+}
+
 function formatSummaryForPrompt(raw: unknown): string {
   const summary = normalizeSummary(raw);
   const lines: string[] = [];
@@ -569,6 +606,7 @@ export async function POST(
     const characterIndexBlock = formatCharacterIndex(relevantCharacters);
     const relationshipIndexBlock = formatRelationshipIndex(chapterIndex.relationships);
     const actions = buildPromptActions(question, relevantCharacters, rowsByChapter);
+    const sourceChapters = mergedMemory.map((row) => row.chapter_number);
 
     const systemPrompt = `
 You are the reader's chronicler inside a reading companion app. Speak with warmth and clarity, like a scribe who has been following along.
@@ -578,11 +616,18 @@ Rules:
 - Do not spoil beyond the stated chapter limit.
 - Do not quote the notes verbatim; paraphrase instead.
 - Be conversational and logical, with a gentle narrative voice.
-- Keep the answer to 1-2 short paragraphs.
+- Keep the summary to 1-2 short paragraphs.
 - If the notes do not contain the answer, say so plainly and invite the reader to add it.
 - When it helps, mention the knowledge cutoff as "up through chapter X".
 - If the reader asks about a first appearance, use the chapter index to cite the earliest noted chapter, and admit if the introduction is not recorded.
 - If detail signals are low for a character in question, say the notes are thin and suggest revisiting the first mention.
+
+Output format (JSON only):
+{
+  "summary": string,
+  "evidence": string[],   // short bullets drawn from memory; empty if none
+  "relationships": string[] // short bullets naming relevant relationships; empty if none
+}
 `.trim();
 
     const userPrompt = `
@@ -615,12 +660,14 @@ Reply now.
       max_output_tokens: (process.env.AI_MAX_TOKENS_ASSISTANT ? parseInt(process.env.AI_MAX_TOKENS_ASSISTANT, 10) : ai.maxOutputTokens),
     });
 
-    const answer = (response.output_text ?? "").trim();
+    const raw = (response.output_text ?? "").trim();
+    const structured = normalizeStructured(tryParseJson(raw));
+    const answer = structured?.summary || raw;
     if (!answer) {
       throw new Error("The assistant did not return a reply.");
     }
 
-    return Response.json({ answer, maxChapter, actions });
+    return Response.json({ answer, structured, sources: sourceChapters, maxChapter, actions });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unable to answer right now.";
     return new Response(JSON.stringify({ error: message }), { status: 500 });
