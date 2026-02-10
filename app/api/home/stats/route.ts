@@ -1,4 +1,4 @@
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-user";
 
 export const runtime = "nodejs";
 
@@ -14,7 +14,10 @@ function extractCharacters(ai: unknown): string[] {
 
 export async function GET() {
   try {
-    const supabase = getServiceSupabase();
+    const { supabase, user } = await requireUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
 
     // Total notes
     const totalRes = await supabase.from("notes").select("id", { count: "exact", head: true });

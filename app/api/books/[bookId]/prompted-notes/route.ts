@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-user";
 
 export const runtime = "nodejs";
 
@@ -63,7 +63,10 @@ export async function POST(
     const questions = normalizeQuestions(prompt.questions);
     const topic = normalizeString(prompt.topic);
 
-    const supabase = getServiceSupabase();
+    const { supabase, user } = await requireUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
     const { data: note, error: noteError } = await supabase
       .from("notes")
       .insert({
@@ -71,6 +74,7 @@ export async function POST(
         chapter_number: chapterNumber,
         content,
         created_at: new Date().toISOString(),
+        user_id: user.id,
       })
       .select("id")
       .single();
@@ -92,6 +96,7 @@ export async function POST(
         questions: questions.length > 0 ? questions : null,
         topic: topic || null,
         created_at: new Date().toISOString(),
+        user_id: user.id,
       });
     if (promptError) throw promptError;
 

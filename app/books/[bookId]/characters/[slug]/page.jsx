@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { getServerSupabase } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import CollapsibleRow from "@/components/ui/CollapsibleRow";
 import NoteSnippetCard from "@/components/NoteSnippetCard";
 import BackArrowIcon from "@/components/BackArrowIcon";
@@ -12,7 +13,11 @@ function Placeholder({ label }) {
 
 export default async function CharacterProfilePage({ params }) {
   const { bookId, slug } = await params;
-  const supabase = getServiceSupabase();
+  const supabase = getServerSupabase();
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData?.user) {
+    redirect("/login");
+  }
 
   const { data, error } = await supabase
     .from("characters")

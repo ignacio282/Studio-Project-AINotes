@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { getServerSupabase } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import NoteSummaryView from "@/components/NoteSummaryView";
 import BackArrowIcon from "@/components/BackArrowIcon";
 
@@ -19,7 +20,11 @@ function formatDateTime(iso) {
 
 export default async function NoteDetailPage({ params }) {
   const { bookId, chapterNumber, noteId } = await params;
-  const supabase = getServiceSupabase();
+  const supabase = getServerSupabase();
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData?.user) {
+    redirect("/login");
+  }
   const { data, error } = await supabase
     .from("notes")
     .select("id,book_id,chapter_number,content,ai_summary,created_at")

@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { NextRequest } from "next/server";
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-user";
 import { getAiConfig } from "@/lib/ai/client";
 import { characterBioSystemPromptV1 } from "@/lib/ai/prompts";
 
@@ -114,7 +114,10 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: "Missing OPENAI_API_KEY" }), { status: 500 });
     }
 
-    const supabase = getServiceSupabase();
+    const { supabase, user } = await requireUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
     const { data: notes, error: notesErr } = await supabase
       .from("notes")
       .select("id,chapter_number,content,ai_summary")
@@ -146,6 +149,7 @@ export async function POST(req: NextRequest) {
           .upsert(
             {
               book_id: bookId,
+              user_id: user.id,
               slug: slugify(name),
               name,
               short_bio: null,
@@ -244,6 +248,7 @@ Task: Return JSON with fields {"role": string, "shortBio": string (<=60 words), 
         .upsert(
           {
             book_id: bookId,
+            user_id: user.id,
             slug: slugify(name),
             name,
             role,

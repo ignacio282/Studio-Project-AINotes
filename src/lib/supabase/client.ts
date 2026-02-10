@@ -1,4 +1,5 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
 let browserClient: SupabaseClient | null = null;
 
@@ -14,9 +15,7 @@ export function getBrowserSupabase(): SupabaseClient {
     );
   }
 
-  browserClient = createClient(url, anonKey, {
-    auth: { persistSession: false },
-  });
+  browserClient = createBrowserClient(url, anonKey);
 
   return browserClient;
 }

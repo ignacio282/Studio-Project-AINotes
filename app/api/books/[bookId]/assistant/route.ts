@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { NextRequest } from "next/server";
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-user";
 import { getAiConfig } from "@/lib/ai/client";
 
 export const runtime = "nodejs";
@@ -518,7 +518,10 @@ export async function POST(
       return new Response(JSON.stringify({ error: "Missing OPENAI_API_KEY in environment" }), { status: 500 });
     }
 
-    const supabase = getServiceSupabase();
+    const { supabase, user } = await requireUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
     const explicitMax = parseMaxChapter(body.maxChapter);
 
     let maxChapter = explicitMax;

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import SignOutButton from "@/components/SignOutButton";
 
 function SectionTitle({ children, subtitle }) {
   return (
@@ -17,7 +18,11 @@ async function fetchJson(path) {
   const host = h.get("x-forwarded-host") || h.get("host") || "localhost:3000";
   const proto = h.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
   const abs = /^https?:\/\//i.test(path) ? path : `${proto}://${host}${path.startsWith("/") ? path : `/${path}`}`;
-  const res = await fetch(abs, { cache: "no-store" });
+  const cookie = h.get("cookie");
+  const res = await fetch(abs, {
+    cache: "no-store",
+    headers: cookie ? { cookie } : undefined,
+  });
   if (!res.ok) return null;
   try {
     return await res.json();
@@ -87,6 +92,9 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl space-y-10 bg-[var(--color-page)] px-6 py-8 text-[var(--color-text-main)]">
+      <div className="flex justify-end">
+        <SignOutButton className="text-sm text-[var(--color-text-accent)]" />
+      </div>
       {/* Currently reading */}
       <section>
         <SectionTitle>Currently reading</SectionTitle>

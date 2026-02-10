@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-user";
 
 export const runtime = "nodejs";
 
@@ -34,7 +34,11 @@ export async function PATCH(
     const body = (await req.json()) as { aiSummary?: unknown };
     const aiSummary = body?.aiSummary ?? {};
 
-    const supabase = getServiceSupabase();
+    const { supabase, user } = await requireUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
+    const userId = user.id;
     const { data, error } = await supabase
       .from("notes")
       .update({ ai_summary: aiSummary })
@@ -53,6 +57,7 @@ export async function PATCH(
               chapter_number: data.chapter_number,
               summary: data.ai_summary ?? {},
               updated_at: new Date().toISOString(),
+              user_id: user.id,
             },
             { onConflict: "book_id,chapter_number" },
           );
@@ -88,6 +93,7 @@ export async function PATCH(
             if (!row) {
               toUpsert.push({
                 book_id: bookId,
+                user_id: userId,
                 slug,
                 name,
                 role: null,
@@ -113,6 +119,7 @@ export async function PATCH(
             if (nextFirst !== row.first_chapter || nextLast !== row.last_chapter) {
               toUpsert.push({
                 book_id: bookId,
+                user_id: userId,
                 slug,
                 name: row.name || name,
                 first_chapter: nextFirst,

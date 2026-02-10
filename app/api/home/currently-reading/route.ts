@@ -1,10 +1,13 @@
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-user";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   try {
-    const supabase = getServiceSupabase();
+    const { supabase, user } = await requireUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
 
     // 1) Fetch books that are currently being read.
     // Prefer the extended schema (with status/cover/updated_at) but fall back

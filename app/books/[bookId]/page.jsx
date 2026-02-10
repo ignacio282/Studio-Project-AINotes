@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { getServerSupabase } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import BookChapterStartSheet from "@/components/BookChapterStartSheet";
 import BackArrowIcon from "@/components/BackArrowIcon";
 import BookHubTabs from "@/components/BookHubTabs";
@@ -134,7 +135,12 @@ export const dynamic = "force-dynamic";
 
 export default async function BookHubPage({ params }) {
   const { bookId } = (await params) || {};
-  const supabase = getServiceSupabase();
+  const supabase = getServerSupabase();
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData?.user) {
+    redirect("/login");
+  }
+  const userId = authData.user.id;
 
   const { data: book } = await supabase
     .from("books")
@@ -179,6 +185,7 @@ export default async function BookHubPage({ params }) {
     .filter((entry) => !characterLookup.has(entry.slug))
     .map((entry) => ({
       book_id: bookId,
+      user_id: userId,
       slug: entry.slug,
       name: entry.name,
       role: null,

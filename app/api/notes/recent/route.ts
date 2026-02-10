@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-user";
 
 export const runtime = "nodejs";
 
@@ -9,7 +9,10 @@ export async function GET(req: NextRequest) {
     const limitRaw = url.searchParams.get("limit");
     const limit = Math.max(1, Math.min(20, limitRaw ? parseInt(limitRaw, 10) : 1));
 
-    const supabase = getServiceSupabase();
+    const { supabase, user } = await requireUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
 
     const { data: notes, error } = await supabase
       .from("notes")

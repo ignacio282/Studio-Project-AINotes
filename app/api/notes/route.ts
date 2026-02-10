@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-user";
 
 export const runtime = "nodejs";
 
@@ -23,7 +23,10 @@ export async function GET(req: NextRequest) {
       return new Response(JSON.stringify({ error: "bookId is required" }), { status: 400 });
     }
 
-    const supabase = getServiceSupabase();
+    const { supabase, user } = await requireUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
     let query = supabase
       .from("notes")
       .select("id,book_id,chapter_number,content,ai_summary,created_at")
@@ -67,7 +70,10 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: "content is required" }), { status: 400 });
     }
 
-    const supabase = getServiceSupabase();
+    const { supabase, user } = await requireUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
     const { data, error } = await supabase
       .from("notes")
       .insert({
@@ -75,6 +81,7 @@ export async function POST(req: NextRequest) {
         chapter_number: chapterNumber as number,
         content,
         created_at: createdAt,
+        user_id: user.id,
       })
       .select("id")
       .single();

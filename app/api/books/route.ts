@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-user";
 
 export const runtime = "nodejs";
 
@@ -16,7 +16,10 @@ type Book = {
 
 export async function GET() {
   try {
-    const supabase = getServiceSupabase();
+    const { supabase, user } = await requireUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
     // Try extended fields first; fall back if columns are missing
     let data: any[] | null = null;
     let error: any = null;
@@ -64,12 +67,15 @@ export async function POST(req: NextRequest) {
     if (!title) {
       return new Response(JSON.stringify({ error: "Title is required" }), { status: 400 });
     }
-    const supabase = getServiceSupabase();
+    const { supabase, user } = await requireUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
     // Attempt insert with extended fields; if it fails due to missing columns, retry with minimal payload.
     const attempt = async () =>
       supabase
         .from("books")
-        .insert({ title, author, publisher, total_chapters, cover_url, status })
+        .insert({ title, author, publisher, total_chapters, cover_url, status, user_id: user.id })
         .select("id,title,author,publisher,total_chapters,cover_url,status,created_at")
         .single();
 
@@ -77,7 +83,7 @@ export async function POST(req: NextRequest) {
     if (error) {
       const minimal = await supabase
         .from("books")
-        .insert({ title, author })
+        .insert({ title, author, user_id: user.id })
         .select("id,title,author,created_at")
         .single();
       if (minimal.error) throw minimal.error;
