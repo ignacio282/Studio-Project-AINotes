@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { getServerSupabase } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import BackArrowIcon from "@/components/BackArrowIcon";
 import BookAssistantChat from "@/components/BookAssistantChat";
 
@@ -7,7 +8,11 @@ export const dynamic = "force-dynamic";
 
 export default async function BookAssistantPage({ params }) {
   const { bookId } = await params;
-  const supabase = getServiceSupabase();
+  const supabase = getServerSupabase();
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData?.user) {
+    redirect("/login");
+  }
   const { data: book } = await supabase
     .from("books")
     .select("id,title,author")

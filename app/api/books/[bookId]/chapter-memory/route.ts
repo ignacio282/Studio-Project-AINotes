@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/require-user";
 
 export const runtime = "nodejs";
 
@@ -32,7 +32,10 @@ export async function POST(
 
     const summary = body.summary ?? {};
 
-    const supabase = getServiceSupabase();
+    const { supabase, user } = await requireUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
     const { error } = await supabase
       .from("book_chapter_memory")
       .upsert(
@@ -41,6 +44,7 @@ export async function POST(
           chapter_number: chapterNumber,
           summary,
           updated_at: new Date().toISOString(),
+          user_id: user.id,
         },
         { onConflict: "book_id,chapter_number" },
       );
