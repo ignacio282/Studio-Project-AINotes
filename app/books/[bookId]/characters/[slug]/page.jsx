@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import CollapsibleRow from "@/components/ui/CollapsibleRow";
 import NoteSnippetCard from "@/components/NoteSnippetCard";
 import BackArrowIcon from "@/components/BackArrowIcon";
+import CharacterProfileMenu from "@/components/CharacterProfileMenu";
 
 export const dynamic = "force-dynamic";
 
@@ -72,10 +73,21 @@ export default async function CharacterProfilePage({ params }) {
 
       {/* Header */}
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight" style={{ fontFamily: "var(--font-h1)" }}>
-          {character?.name || "Unknown"}
-        </h1>
-        <div className="text-base text-[var(--color-secondary)]">{character?.role || "Protagonist"}</div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-3xl font-semibold tracking-tight" style={{ fontFamily: "var(--font-h1)" }}>
+              {character?.name || "Unknown"}
+            </h1>
+            <div className="text-base text-[var(--color-secondary)]">{character?.role || "Protagonist"}</div>
+          </div>
+          {character ? (
+            <CharacterProfileMenu
+              bookId={bookId}
+              slug={slug}
+              name={character?.name || "Character"}
+            />
+          ) : null}
+        </div>
         {isPopulating && (
           <div className="inline-flex items-center gap-2 rounded-full bg-[var(--color-surface)] px-3 py-1">
             <svg viewBox="0 0 24 24" className="h-3 w-3 animate-spin text-[var(--color-secondary)]" aria-hidden>

@@ -140,7 +140,6 @@ export default async function BookHubPage({ params }) {
   if (!authData?.user) {
     redirect("/login");
   }
-  const userId = authData.user.id;
 
   const { data: book } = await supabase
     .from("books")
@@ -165,7 +164,7 @@ export default async function BookHubPage({ params }) {
   const noteCount = notes.length;
   const firstNoteAt = noteCount > 0 ? notes[notes.length - 1].created_at : null;
   const { characters: noteCharacters, places } = extractEntities(notes);
-  const charCount = noteCharacters.length;
+  const charCount = characters.length;
   const placeCount = places.length;
 
   const startedOn = firstNoteAt ?? book?.created_at ?? null;
@@ -181,31 +180,9 @@ export default async function BookHubPage({ params }) {
       .filter((entry) => typeof entry?.slug === "string" && entry.slug.trim())
       .map((entry) => [entry.slug, entry]),
   );
-  const missingCharacters = noteCharacters
-    .filter((entry) => !characterLookup.has(entry.slug))
-    .map((entry) => ({
-      book_id: bookId,
-      user_id: userId,
-      slug: entry.slug,
-      name: entry.name,
-      role: null,
-      short_bio: null,
-      full_bio: null,
-      first_chapter: Number.isFinite(entry.firstChapter) ? entry.firstChapter : null,
-      last_chapter: Number.isFinite(entry.lastChapter) ? entry.lastChapter : null,
-      relationships: [],
-      timeline: [],
-      updated_at: new Date().toISOString(),
-    }));
-  if (missingCharacters.length > 0) {
-    await supabase.from("characters").upsert(missingCharacters, { onConflict: "book_id,slug" });
-    missingCharacters.forEach((entry) => {
-      characterLookup.set(entry.slug, entry);
-    });
-  }
   const charactersForTabs = noteCharacters.map((entry) => {
     const match = characterLookup.get(entry.slug);
-    return { name: match?.name || entry.name, slug: entry.slug };
+    return { name: match?.name || entry.name, slug: match?.slug || "" };
   });
 
   return (
