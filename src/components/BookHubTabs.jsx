@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import KebabIcon from "@/components/KebabIcon";
+import ActionBottomSheet from "@/components/ui/ActionBottomSheet";
 
 const TABS = [
   { id: "notes", label: "Notes" },
@@ -59,16 +62,60 @@ function CloseIcon({ className }) {
 
 export default function BookHubTabs({
   bookId,
-  noteCount,
   notes,
   filtersDisabled,
   characters,
   places,
 }) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("notes");
   const [showAllNotes, setShowAllNotes] = useState(false);
   const [showAssistantNotice, setShowAssistantNotice] = useState(true);
+  const [notesState, setNotesState] = useState(Array.isArray(notes) ? notes : []);
+  const [activeNoteActionId, setActiveNoteActionId] = useState("");
+  const [isDeletingNote, setIsDeletingNote] = useState(false);
   const chipBase = "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap";
+  const effectiveNoteCount = notesState.length;
+  const filtersAreDisabled = effectiveNoteCount === 0;
+
+  useEffect(() => {
+    setNotesState(Array.isArray(notes) ? notes : []);
+  }, [notes]);
+
+  const activeNoteAction = useMemo(
+    () => notesState.find((note) => note.id === activeNoteActionId) ?? null,
+    [activeNoteActionId, notesState],
+  );
+
+  const handleDeleteNote = async () => {
+    if (!activeNoteAction || isDeletingNote) return;
+    const confirmed = window.confirm("Delete this note permanently?");
+    if (!confirmed) return;
+
+    try {
+      setIsDeletingNote(true);
+      const response = await fetch(`/api/notes/${activeNoteAction.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        let message = "Unable to delete note.";
+        try {
+          const payload = await response.json();
+          if (typeof payload?.error === "string" && payload.error.trim()) {
+            message = payload.error;
+          }
+        } catch {}
+        throw new Error(message);
+      }
+
+      setNotesState((prev) => prev.filter((note) => note.id !== activeNoteAction.id));
+      setActiveNoteActionId("");
+      router.refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete note.";
+      window.alert(message);
+    } finally {
+      setIsDeletingNote(false);
+    }
+  };
 
   return (
     <section>
@@ -132,13 +179,13 @@ export default function BookHubTabs({
             </div>
           )}
           <div className="caption mb-4">
-            {formatCount(noteCount, "note", "notes")}
+            {formatCount(effectiveNoteCount, "note", "notes")}
           </div>
 
           <div className="mb-4 flex flex-nowrap gap-2 overflow-x-auto no-scrollbar">
             <span
               className={`${chipBase} flex-shrink-0 ${
-                filtersDisabled
+                filtersAreDisabled || filtersDisabled
                   ? "bg-[color:var(--color-text-disabled)/20%] text-[var(--color-text-disabled)]"
                   : "bg-[var(--color-accent-subtle)] text-[var(--color-text-main)]"
               }`}
@@ -148,7 +195,7 @@ export default function BookHubTabs({
             </span>
             <span
               className={`${chipBase} flex-shrink-0 border ${
-                filtersDisabled
+                filtersAreDisabled || filtersDisabled
                   ? "border-[var(--color-text-disabled)] text-[var(--color-text-disabled)]"
                   : "border-[var(--color-secondary)] text-[var(--color-text-main)]"
               }`}
@@ -158,7 +205,7 @@ export default function BookHubTabs({
             </span>
             <span
               className={`${chipBase} flex-shrink-0 border ${
-                filtersDisabled
+                filtersAreDisabled || filtersDisabled
                   ? "border-[var(--color-text-disabled)] text-[var(--color-text-disabled)]"
                   : "border-[var(--color-secondary)] text-[var(--color-text-main)]"
               }`}
@@ -168,7 +215,7 @@ export default function BookHubTabs({
             </span>
             <span
               className={`${chipBase} flex-shrink-0 border ${
-                filtersDisabled
+                filtersAreDisabled || filtersDisabled
                   ? "border-[var(--color-text-disabled)] text-[var(--color-text-disabled)]"
                   : "border-[var(--color-secondary)] text-[var(--color-text-main)]"
               }`}
@@ -178,7 +225,7 @@ export default function BookHubTabs({
             </span>
             <span
               className={`${chipBase} flex-shrink-0 border ${
-                filtersDisabled
+                filtersAreDisabled || filtersDisabled
                   ? "border-[var(--color-text-disabled)] text-[var(--color-text-disabled)]"
                   : "border-[var(--color-secondary)] text-[var(--color-text-main)]"
               }`}
@@ -188,43 +235,51 @@ export default function BookHubTabs({
             </span>
           </div>
 
-          {notes.length === 0 ? (
+          {notesState.length === 0 ? (
             <div className="rounded-2xl bg-[var(--color-surface)] p-6 text-[var(--color-secondary)]">
               Start taking notes to see them here.
             </div>
           ) : (
             <div className="space-y-4">
-              {(showAllNotes ? notes : notes.slice(0, 3)).map((n) => {
+              {(showAllNotes ? notesState : notesState.slice(0, 3)).map((n) => {
                 const href = `/books/${bookId}/chapters/${n.chapter_number}/notes/${n.id}`;
                 return (
-                  <Link
-                    key={n.id}
-                    href={href}
-                    className="block rounded-2xl bg-[var(--color-surface)] p-4"
-                  >
-                    <div
-                      className="text-base font-medium"
-                      style={{ fontFamily: "var(--font-title)" }}
-                    >
-                      {new Date(n.created_at).toLocaleString()}
+                  <div key={n.id} className="rounded-2xl bg-[var(--color-surface)] p-4">
+                    <div className="flex items-start gap-3">
+                      <Link href={href} className="min-w-0 flex-1">
+                        <div
+                          className="text-base font-medium"
+                          style={{ fontFamily: "var(--font-title)" }}
+                        >
+                          {new Date(n.created_at).toLocaleString()}
+                        </div>
+                        <div className="caption">Chapter {n.chapter_number}</div>
+                        <div
+                          className="mt-2 text-sm font-normal text-[var(--color-text-main)]"
+                          style={{ fontFamily: "var(--font-body)" }}
+                        >
+                          {n.preview ? (
+                            n.preview
+                          ) : (
+                            <span className="text-[var(--color-secondary)]">
+                              Open to view full note
+                            </span>
+                          )}
+                        </div>
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setActiveNoteActionId(n.id)}
+                        className="rounded-full p-1 text-[var(--color-secondary)] transition hover:bg-[var(--color-page)] hover:text-[var(--color-text-main)]"
+                        aria-label="Open note actions"
+                      >
+                        <KebabIcon className="h-5 w-5" />
+                      </button>
                     </div>
-                    <div className="caption">Chapter {n.chapter_number}</div>
-                    <div
-                      className="mt-2 text-sm font-normal text-[var(--color-text-main)]"
-                      style={{ fontFamily: "var(--font-body)" }}
-                    >
-                      {n.preview ? (
-                        n.preview
-                      ) : (
-                        <span className="text-[var(--color-secondary)]">
-                          Open to view full note
-                        </span>
-                      )}
-                    </div>
-                  </Link>
+                  </div>
                 );
               })}
-              {notes.length > 3 && !showAllNotes && (
+              {notesState.length > 3 && !showAllNotes && (
                 <div className="flex justify-center pt-1">
                   <button
                     type="button"
@@ -237,6 +292,23 @@ export default function BookHubTabs({
               )}
             </div>
           )}
+          <ActionBottomSheet
+            open={Boolean(activeNoteAction)}
+            onClose={() => {
+              if (isDeletingNote) return;
+              setActiveNoteActionId("");
+            }}
+            title="Note actions"
+            actions={[
+              {
+                id: "delete-note",
+                label: isDeletingNote ? "Deleting note..." : "Delete note",
+                onClick: handleDeleteNote,
+                disabled: isDeletingNote,
+                destructive: true,
+              },
+            ]}
+          />
         </div>
       )}
 

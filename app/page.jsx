@@ -1106,6 +1106,35 @@ function normalizeName(name) {
   return (name || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+function buildTypoPromptKey(suggestion) {
+  const noteId = typeof suggestion?.noteId === "string" ? suggestion.noteId : "";
+  const candidate = normalizeName(typeof suggestion?.candidateName === "string" ? suggestion.candidateName : "");
+  const matchedSlug = typeof suggestion?.matchedSlug === "string" ? suggestion.matchedSlug : "";
+  return `${noteId}|${candidate}|${matchedSlug}`;
+}
+
+function replaceCharacterNameInSummary(summary, fromName, toName) {
+  const normalizedSummary = normalizeSummary(summary ?? createEmptySummary());
+  const fromNormalized = normalizeName(fromName);
+  if (!fromNormalized) return normalizedSummary;
+
+  const replacement = (toName || "").trim() || fromName;
+  const seen = new Set();
+  const nextCharacters = [];
+  normalizedSummary.characters.forEach((entry) => {
+    const nextValue = normalizeName(entry) === fromNormalized ? replacement : entry;
+    const key = normalizeName(nextValue);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    nextCharacters.push(nextValue);
+  });
+
+  return {
+    ...normalizedSummary,
+    characters: nextCharacters,
+  };
+}
+
 function extractAdditionalNames(text, primaryLabel) {
   const primaryNormalized = normalizeName(primaryLabel);
   const names = new Set();
@@ -1570,7 +1599,7 @@ function SummarySheet({ open, onClose, session, highlights, onCharacterClick }) 
   );
 }
 
-function CharacterBottomSheet({ open, onClose, name, role, shortBio, relationships = [], seeMoreHref = "#", isLoading = false }) {
+function CharacterBottomSheet({ open, onClose, name, role, shortBio, relationships = [], seeMoreHref = "", isLoading = false }) {
   const filteredRelationships = Array.isArray(relationships)
     ? relationships
         .filter((r) => typeof r === "string" && r.toLowerCase().includes((name || "").toLowerCase()))
@@ -1638,14 +1667,16 @@ function CharacterBottomSheet({ open, onClose, name, role, shortBio, relationshi
                   )}
                 </div>
               </div>
-              <div>
-                <a
-                  href={seeMoreHref}
-                  className="inline-flex items-center justify-center rounded-full bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-[var(--color-text-on-accent)] hover:bg-[var(--color-accent-hover)]"
-                >
-                  See more
-                </a>
-              </div>
+              {seeMoreHref ? (
+                <div>
+                  <a
+                    href={seeMoreHref}
+                    className="inline-flex items-center justify-center rounded-full bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-[var(--color-text-on-accent)] hover:bg-[var(--color-accent-hover)]"
+                  >
+                    See more
+                  </a>
+                </div>
+              ) : null}
             </div>
           </motion.div>
         </motion.div>
@@ -1730,6 +1761,8 @@ export default function JournalingPage(props) {
   const reflectionDiffRef = useRef({ added: {} });
   const reflectionChangeSummaryRequestRef = useRef(false);
   const noteIdMapRef = useRef(new Map()); // localId -> dbId
+  const typoPromptSeenRef = useRef(new Set());
+  const typoResolutionPendingRef = useRef(new Set());
   const [isCharacterSheetOpen, setIsCharacterSheetOpen] = useState(false);
   const [characterSheet, setCharacterSheet] = useState({ name: "", role: "", shortBio: "", slug: "" });
   const [isCharacterLoading, setIsCharacterLoading] = useState(false);
@@ -1936,11 +1969,65 @@ export default function JournalingPage(props) {
           if (noteLocalId && noteIdMapRef.current instanceof Map) {
             const dbId = noteIdMapRef.current.get(noteLocalId);
             if (dbId) {
-              await fetch(`/api/notes/${dbId}/summary`, {
+              const patchRes = await fetch(`/api/notes/${dbId}/summary`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ aiSummary: normalizedSummary }),
               });
+              if (patchRes.ok) {
+                const patchPayload = await patchRes.json().catch(() => null);
+                const typoSuggestions = Array.isArray(patchPayload?.typoSuggestions)
+                  ? patchPayload.typoSuggestions
+                  : [];
+                if (typoSuggestions.length > 0) {
+                  const nextPrompts = [];
+                  typoSuggestions.forEach((suggestion) => {
+                    const promptKey = buildTypoPromptKey(suggestion);
+                    if (!promptKey || typoPromptSeenRef.current.has(promptKey)) {
+                      return;
+                    }
+                    const candidateName =
+                      typeof suggestion?.candidateName === "string" ? suggestion.candidateName.trim() : "";
+                    const matchedName =
+                      typeof suggestion?.matchedName === "string" ? suggestion.matchedName.trim() : "";
+                    const matchedSlug =
+                      typeof suggestion?.matchedSlug === "string" ? suggestion.matchedSlug.trim() : "";
+                    const noteId =
+                      typeof suggestion?.noteId === "string" ? suggestion.noteId.trim() : dbId;
+                    if (!candidateName || !matchedName || !matchedSlug || !noteId) {
+                      return;
+                    }
+                    typoPromptSeenRef.current.add(promptKey);
+                    nextPrompts.push({
+                      id: safeUuid(),
+                      role: "ai",
+                      content: `You just mentioned "${candidateName}", did you mean "${matchedName}"?`,
+                      createdAt: new Date().toISOString(),
+                      actions: [
+                        {
+                          id: "typo_same",
+                          label: "Yes",
+                          noteId,
+                          candidateName,
+                          matchedName,
+                          matchedSlug,
+                        },
+                        {
+                          id: "typo_different",
+                          label: "No",
+                          noteId,
+                          candidateName,
+                          matchedName,
+                          matchedSlug,
+                        },
+                      ],
+                    });
+                  });
+                  if (nextPrompts.length > 0) {
+                    setMessages((prev) => [...prev, ...nextPrompts]);
+                  }
+                }
+              }
             }
           }
         } catch {
@@ -2223,15 +2310,13 @@ export default function JournalingPage(props) {
     setInputValue("");
   };
 
-  const slugifyLocal = (name) => name.toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/\s+/g, "-");
-
   const openCharacterSheet = async (name) => {
     if (!name) return;
     if (flowStep !== FLOW_STATES.COMPLETE && flowStep !== FLOW_STATES.SUMMARY) {
       return;
     }
     setIsCharacterSheetOpen(true);
-    setCharacterSheet({ name, role: "", shortBio: "", slug: slugifyLocal(name) });
+    setCharacterSheet({ name, role: "", shortBio: "", slug: "" });
     setIsCharacterLoading(true);
     try {
       const listRes = await fetch(`/api/characters?bookId=${encodeURIComponent(session.bookId)}`);
@@ -2239,24 +2324,18 @@ export default function JournalingPage(props) {
       const existing = Array.isArray(list?.characters)
         ? list.characters.find((c) => typeof c?.name === "string" && c.name.toLowerCase() === name.toLowerCase())
         : null;
-      if (!existing) {
-        await fetch(`/api/characters/generate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ bookId: session.bookId, names: [name] }),
-        });
-      }
-      const slug = existing?.slug || slugifyLocal(name);
-      const detailRes = await fetch(`/api/characters/${encodeURIComponent(session.bookId)}/${encodeURIComponent(slug)}`);
-      if (detailRes.ok) {
-        const payload = await detailRes.json();
-        const ch = payload?.character || {};
-        setCharacterSheet({
-          name: ch.name || name,
-          role: ch.role || "",
-          shortBio: ch.short_bio || "",
-          slug,
-        });
+      if (existing?.slug) {
+        const detailRes = await fetch(`/api/characters/${encodeURIComponent(session.bookId)}/${encodeURIComponent(existing.slug)}`);
+        if (detailRes.ok) {
+          const payload = await detailRes.json();
+          const ch = payload?.character || {};
+          setCharacterSheet({
+            name: ch.name || name,
+            role: ch.role || "",
+            shortBio: ch.short_bio || "",
+            slug: existing.slug,
+          });
+        }
       }
     } catch {}
     setIsCharacterLoading(false);
@@ -2285,7 +2364,7 @@ export default function JournalingPage(props) {
     setFlowStep(FLOW_STATES.JOURNALING);
   };
 
-  const handleJournalMessageAction = (action, message) => {
+  const handleJournalMessageAction = async (action, message) => {
     if (!action) return;
     const actionId = action.id || action.type;
     if (actionId === "start") {
@@ -2301,6 +2380,110 @@ export default function JournalingPage(props) {
           return { ...entry, actions: [] };
         }),
       );
+      return;
+    }
+
+    if (actionId === "typo_same" || actionId === "typo_different") {
+      const noteId = typeof action.noteId === "string" ? action.noteId.trim() : "";
+      const candidateName = typeof action.candidateName === "string" ? action.candidateName.trim() : "";
+      const matchedName = typeof action.matchedName === "string" ? action.matchedName.trim() : "";
+      const matchedSlug = typeof action.matchedSlug === "string" ? action.matchedSlug.trim() : "";
+      if (!noteId || !candidateName) {
+        return;
+      }
+
+      const pendingKey = `${noteId}|${normalizeName(candidateName)}|${actionId}`;
+      if (typoResolutionPendingRef.current.has(pendingKey)) {
+        return;
+      }
+      typoResolutionPendingRef.current.add(pendingKey);
+
+      setMessages((prev) =>
+        prev.map((entry) => {
+          if (entry.id !== message.id) {
+            return entry;
+          }
+          return { ...entry, actions: [] };
+        }),
+      );
+
+      try {
+        const decision = actionId === "typo_same" ? "same" : "different";
+        const res = await fetch(`/api/notes/${encodeURIComponent(noteId)}/summary`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            noteId,
+            candidateName,
+            matchedName,
+            matchedSlug,
+            decision,
+          }),
+        });
+        if (!res.ok) {
+          let messageText = "Unable to resolve that name right now.";
+          try {
+            const err = await res.json();
+            if (err?.error) {
+              messageText = err.error;
+            }
+          } catch {
+            // ignore parsing errors
+          }
+          throw new Error(messageText);
+        }
+
+        const payload = await res.json().catch(() => ({}));
+        if (decision === "same") {
+          const resolvedName =
+            typeof payload?.resolvedName === "string" && payload.resolvedName.trim()
+              ? payload.resolvedName.trim()
+              : matchedName || candidateName;
+          const nextSummary =
+            payload?.summary && typeof payload.summary === "object"
+              ? normalizeSummary(payload.summary)
+              : replaceCharacterNameInSummary(summaryRef.current, candidateName, resolvedName);
+          setSession((prev) => ({
+            ...prev,
+            summary: nextSummary,
+          }));
+          summaryRef.current = nextSummary;
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: safeUuid(),
+              role: "ai",
+              content: `Got it. I'll treat "${candidateName}" as "${resolvedName}".`,
+              createdAt: new Date().toISOString(),
+            },
+          ]);
+        } else {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: safeUuid(),
+              role: "ai",
+              content: `Understood. I'll keep "${candidateName}" as a separate character.`,
+              createdAt: new Date().toISOString(),
+            },
+          ]);
+        }
+      } catch (error) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: safeUuid(),
+            role: "ai",
+            content:
+              error instanceof Error
+                ? error.message
+                : "Unable to resolve that name right now.",
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+      } finally {
+        typoResolutionPendingRef.current.delete(pendingKey);
+      }
     }
   };
 
@@ -2841,7 +3024,11 @@ export default function JournalingPage(props) {
           role={characterSheet.role}
           shortBio={characterSheet.shortBio}
           isLoading={isCharacterLoading}
-          seeMoreHref={`/books/${encodeURIComponent(session.bookId)}/characters/${encodeURIComponent(characterSheet.slug)}`}
+          seeMoreHref={
+            characterSheet.slug
+              ? `/books/${encodeURIComponent(session.bookId)}/characters/${encodeURIComponent(characterSheet.slug)}`
+              : ""
+          }
           relationships={Array.isArray(session?.summary?.relationships) ? session.summary.relationships : []}
         />
       </>
@@ -2968,7 +3155,11 @@ export default function JournalingPage(props) {
           role={characterSheet.role}
           shortBio={characterSheet.shortBio}
           isLoading={isCharacterLoading}
-          seeMoreHref={`/books/${encodeURIComponent(session.bookId)}/characters/${encodeURIComponent(characterSheet.slug)}`}
+          seeMoreHref={
+            characterSheet.slug
+              ? `/books/${encodeURIComponent(session.bookId)}/characters/${encodeURIComponent(characterSheet.slug)}`
+              : ""
+          }
           relationships={Array.isArray(session?.summary?.relationships) ? session.summary.relationships : []}
         />
       </>
@@ -3038,51 +3229,39 @@ export default function JournalingPage(props) {
               <div className="text-xs text-red-500">{summaryError}</div>
             ) : null}
 
-            {/* Composer layout: attachment button + message form */}
-            <div className="flex items-end gap-2">
-              {/* Placeholder action for future attachments */}
-              <button
-                type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-surface)] text-xl text-[var(--color-secondary)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label="Add attachment"
+            {/* Message input and submit affordance */}
+            <form
+              onSubmit={handleFormSubmit}
+              className={`flex items-end gap-2 rounded-lg bg-[var(--color-surface)] px-3 py-2 ${isComposerLocked ? "opacity-60" : ""}`}
+              aria-disabled={isComposerLocked}
+            >
+              <textarea
+                ref={composerInputRef}
+                value={inputValue}
+                onChange={(event) => setInputValue(event.target.value)}
+                onKeyDown={handleKeyDown}
+                rows={1}
+                placeholder="What's on your mind?"
+                className="h-10 flex-1 resize-none bg-transparent text-sm leading-6 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] disabled:cursor-not-allowed disabled:text-[var(--color-text-disabled)]"
                 disabled={isComposerLocked}
-              >
-                +
-              </button>
-              {/* Message input and submit affordance */}
-              <form
-                onSubmit={handleFormSubmit}
-                className={`flex flex-1 items-end gap-2 rounded-lg bg-[var(--color-surface)] px-3 py-2 ${isComposerLocked ? "opacity-60" : ""}`}
                 aria-disabled={isComposerLocked}
+              />
+              <button
+                type="submit"
+                className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-accent)] text-[var(--color-text-on-accent)] transition hover:bg-[var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isComposerLocked || !inputValue.trim()}
+                aria-label="Send note"
               >
-                <textarea
-                  ref={composerInputRef}
-                  value={inputValue}
-                  onChange={(event) => setInputValue(event.target.value)}
-                  onKeyDown={handleKeyDown}
-                  rows={1}
-                  placeholder="What's on your mind?"
-                  className="h-10 flex-1 resize-none bg-transparent text-sm leading-6 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] disabled:cursor-not-allowed disabled:text-[var(--color-text-disabled)]"
-                  disabled={isComposerLocked}
-                  aria-disabled={isComposerLocked}
-                />
-                <button
-                  type="submit"
-                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-accent)] text-[var(--color-text-on-accent)] transition hover:bg-[var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={isComposerLocked || !inputValue.trim()}
-                  aria-label="Send note"
-                >
-                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                      d="M3.75 3.75l12.5 6.25-12.5 6.25 2.5-6.25-2.5-6.25z"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-              </form>
-            </div>
+                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M3.75 3.75l12.5 6.25-12.5 6.25 2.5-6.25-2.5-6.25z"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            </form>
           </div>
         </footer>
       </div>
