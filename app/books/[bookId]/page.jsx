@@ -133,8 +133,10 @@ function extractEntities(notes) {
 
 export const dynamic = "force-dynamic";
 
-export default async function BookHubPage({ params }) {
+export default async function BookHubPage({ params, searchParams }) {
   const { bookId } = (await params) || {};
+  const query = (await searchParams) || {};
+  const openStartNote = query?.startNote === "1";
   const supabase = getServerSupabase();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData?.user) {
@@ -256,6 +258,7 @@ export default async function BookHubPage({ params }) {
             bookId={bookId}
             bookTitle={book?.title || ""}
             totalChapters={book?.total_chapters ?? null}
+            openOnMount={openStartNote}
           />
           <Link
             href={`/books/${bookId}/assistant`}
