@@ -9,8 +9,18 @@ const compat = new FlatCompat({
   baseDirectory: __dirname,
 });
 
+const nextCoreWebVitals = compat.extends("next/core-web-vitals");
+const nextTypeScript = compat.extends("next/typescript").map((config) => ({
+  ...config,
+  files: ["**/*.{ts,tsx,mts,cts}"],
+}));
+
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  ...nextCoreWebVitals,
+  ...nextTypeScript,
+  {
+    files: ["**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}"],
+  },
   {
     ignores: [
       "node_modules/**",
