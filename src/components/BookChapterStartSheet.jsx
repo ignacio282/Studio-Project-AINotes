@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -8,6 +8,7 @@ export default function BookChapterStartSheet({
   bookId,
   bookTitle,
   totalChapters,
+  openOnMount = false,
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -29,6 +30,11 @@ export default function BookChapterStartSheet({
     setOpen(false);
     setSelectedChapter(null);
   };
+
+  useEffect(() => {
+    if (!openOnMount || !hasValidBook) return;
+    setOpen(true);
+  }, [openOnMount, hasValidBook]);
 
   const handleStart = () => {
     if (!hasValidBook || !selectedChapter) return;
