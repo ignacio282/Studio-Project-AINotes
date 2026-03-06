@@ -3,12 +3,20 @@ import { getServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import BackArrowIcon from "@/components/BackArrowIcon";
 import BookAssistantChat from "@/components/BookAssistantChat";
+import QaLoadingPage from "@/components/qa/QaLoadingPage";
+import { resolveQaState } from "@/lib/qa/state";
 
 export const dynamic = "force-dynamic";
 
-export default async function BookAssistantPage({ params }) {
+export default async function BookAssistantPage({ params, searchParams }) {
   const { bookId } = await params;
-  const supabase = getServerSupabase();
+  const query = (await searchParams) || {};
+  const qaState = resolveQaState(query);
+  if (qaState === "loading") return <QaLoadingPage title="Loading assistant preview..." />;
+  if (qaState === "error") {
+    throw new Error("QA forced error state on Assistant page.");
+  }
+  const supabase = await getServerSupabase();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData?.user) {
     redirect("/login");
@@ -34,7 +42,7 @@ export default async function BookAssistantPage({ params }) {
       </header>
 
       <main className="assistant-body">
-        <BookAssistantChat bookId={bookId} bookTitle={book?.title || "this book"} />
+        <BookAssistantChat bookId={bookId} bookTitle={book?.title || "this book"} qaState={qaState} />
       </main>
     </div>
   );

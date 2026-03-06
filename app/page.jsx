@@ -260,7 +260,7 @@ function NoteMessage({ message, onAction }) {
       {isAI ? (
         <>
           {/* Assistant responses span the width and use primary text tone */}
-          <div className="w-full max-w-2xl text-sm leading-6 text-[var(--color-text-main)]">
+          <div className="type-body w-full max-w-2xl text-[var(--color-text-main)]">
             <div className="whitespace-pre-wrap">{message.content}</div>
             {actions.length > 0 ? (
               <div className="mt-4 flex flex-wrap gap-2">
@@ -271,7 +271,7 @@ function NoteMessage({ message, onAction }) {
                       key={key}
                       type="button"
                       onClick={() => handleActionClick(action)}
-                      className="inline-flex items-center justify-center rounded-full bg-[var(--color-accent-subtle)] px-4 py-1.5 text-sm font-medium text-[var(--color-text-accent)] transition hover:bg-[var(--color-accent-subtle)]/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+                      className="type-button inline-flex items-center justify-center rounded-full bg-[var(--color-accent-subtle)] px-4 py-1.5 text-[var(--color-text-accent)] transition hover:bg-[var(--color-accent-subtle)]/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
                     >
                       {action.label}
                     </button>
@@ -284,7 +284,7 @@ function NoteMessage({ message, onAction }) {
       ) : (
         <>
           {/* User notes stay compact in a rounded surface bubble */}
-          <div className="max-w-xs rounded-2xl bg-[var(--color-surface)] px-5 py-3 text-sm leading-6 text-[var(--color-text-main)]">
+          <div className="type-body max-w-xs rounded-2xl bg-[var(--color-surface)] px-5 py-3 text-[var(--color-text-main)]">
             <div className="whitespace-pre-wrap">{message.content}</div>
           </div>
         </>
@@ -296,7 +296,7 @@ function NoteMessage({ message, onAction }) {
 function TypingIndicator() {
   return (
     <div className="mb-6 flex justify-start">
-      <div className="rounded-2xl bg-[var(--color-surface)] px-4 py-2 text-sm text-[var(--color-secondary)]">
+      <div className="type-body rounded-2xl bg-[var(--color-surface)] px-4 py-2 text-[var(--color-secondary)]">
         Thinking...
       </div>
     </div>
@@ -337,14 +337,14 @@ function SummaryCategory({ title, items, placeholder, showWhenEmpty = false, hig
   const resolvedPlaceholder = placeholder || DEFAULT_EXTRA_PLACEHOLDER;
 
   const HighlightBadge = () => (
-    <span className="inline-flex shrink-0 items-center justify-center rounded-full bg-[var(--color-accent-subtle)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-accent)]">
+    <span className="type-small inline-flex shrink-0 items-center justify-center rounded-full bg-[var(--color-accent-subtle)] px-2 py-0.5 uppercase tracking-wide text-[var(--color-accent)]">
       NEW
     </span>
   );
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center gap-2 text-base font-semibold text-[var(--color-text-main)]">
+      <div className="type-title flex items-center gap-2 text-[var(--color-text-main)]">
         {icon ? <span aria-hidden="true">{icon}</span> : null}
         <span>{title}</span>
       </div>
@@ -361,7 +361,7 @@ function SummaryCategory({ title, items, placeholder, showWhenEmpty = false, hig
             if (title === "Summary") {
               return (
                 <div key={key} className={`${summaryLayoutClass} ${containerHighlightClass}`}>
-                  <p className="flex-1 text-sm leading-6 text-[var(--color-text-main)]">{item}</p>
+                  <p className="type-body flex-1 text-[var(--color-text-main)]">{item}</p>
                   {isHighlighted ? <HighlightBadge /> : null}
                 </div>
               );
@@ -374,12 +374,12 @@ function SummaryCategory({ title, items, placeholder, showWhenEmpty = false, hig
                   <button
                     type="button"
                     onClick={() => onCharacterClick && onCharacterClick(item)}
-                    className="flex-1 text-left text-sm leading-6 text-[var(--color-text-accent)] font-medium hover:underline hover:decoration-[var(--color-accent-subtle)] hover:underline-offset-2 hover:text-[var(--color-accent-hover)]"
+                    className="type-body flex-1 text-left text-[var(--color-text-accent)] hover:underline hover:decoration-[var(--color-accent-subtle)] hover:underline-offset-2 hover:text-[var(--color-accent-hover)]"
                   >
                     {item}
                   </button>
                 ) : (
-                  <span className="flex-1 text-sm leading-6 text-[var(--color-text-main)]">{item}</span>
+                  <span className="type-body flex-1 text-[var(--color-text-main)]">{item}</span>
                 )}
               </div>
             );
@@ -392,7 +392,7 @@ function SummaryCategory({ title, items, placeholder, showWhenEmpty = false, hig
           })}
         </div>
       ) : (
-        <div className="mt-4 text-sm text-[var(--color-text-disabled)]">{resolvedPlaceholder}</div>
+        <div className="type-body mt-4 text-[var(--color-text-disabled)]">{resolvedPlaceholder}</div>
       )}
     </section>
   );
@@ -1421,20 +1421,20 @@ function NoteSummaryScreen({ session, completedAt, onBack, onReflect, onFinish, 
           <button
             type="button"
             onClick={onBack}
-            className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
+            className="type-button flex items-center gap-2 text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
           >
-            <BackArrowIcon />
+            <BackArrowIcon className="h-6 w-6 text-[var(--color-text-accent)]" />
             <span>Back</span>
           </button>
-          <div className="text-sm font-semibold uppercase tracking-wide text-[var(--color-secondary)]">Session notes</div>
+          <div className="type-caption uppercase tracking-wide text-[var(--color-secondary)]">Session notes</div>
           <div className="w-12" />
         </div>
       </header>
       <main className="flex-1 overflow-y-auto px-6 pb-24 pt-10">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
           <div>
-            <div className="text-xs text-[var(--color-secondary)]">{timestampLabel}</div>
-            <h1 className="text-2xl font-medium" style={{ fontFamily: "var(--font-h2)" }}>
+            <div className="type-caption text-[var(--color-secondary)]">{timestampLabel}</div>
+            <h1 className="type-h2">
               {session.chapterTitle}
             </h1>
           </div>
@@ -1453,14 +1453,14 @@ function NoteSummaryScreen({ session, completedAt, onBack, onReflect, onFinish, 
           <button
             type="button"
             onClick={onReflect}
-            className="w-full rounded-full bg-[var(--color-accent)] px-5 py-3 text-base font-semibold text-[var(--color-text-on-accent)] transition hover:bg-[var(--color-accent-hover)]"
+            className="type-button w-full rounded-full bg-[var(--color-accent)] px-5 py-3 text-[var(--color-text-on-accent)] transition hover:bg-[var(--color-accent-hover)]"
           >
             Reflect and expand
           </button>
           <button
             type="button"
             onClick={onFinish}
-            className="w-full rounded-full border border-transparent px-5 py-3 text-base font-semibold text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
+            className="type-button w-full rounded-full border border-transparent px-5 py-3 text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
           >
             Finish session
           </button>
@@ -1488,8 +1488,8 @@ function ReflectionCompleteScreen({
       <header className="border-b border-[var(--color-accent-subtle)] bg-[var(--color-text-on-accent)] px-6 py-5">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-center">
           <div className="text-center">
-            <div className="text-xs uppercase tracking-wide text-[var(--color-secondary)]">Reflection complete</div>
-            <h1 className="text-2xl font-medium text-[var(--color-text-main)]" style={{ fontFamily: "var(--font-h2)" }}>
+            <div className="type-caption uppercase tracking-wide text-[var(--color-secondary)]">Reflection complete</div>
+            <h1 className="type-h2 text-[var(--color-text-main)]">
               {session.chapterTitle}
             </h1>
           </div>
@@ -1498,13 +1498,13 @@ function ReflectionCompleteScreen({
       <main className="flex-1 overflow-y-auto px-6 pb-24 pt-10">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
           <div>
-            <div className="text-xs text-[var(--color-secondary)]">{timestampLabel}</div>
-            <div className="text-base font-medium text-[var(--color-text-main)]">{session.bookTitle}</div>
+            <div className="type-caption text-[var(--color-secondary)]">{timestampLabel}</div>
+            <div className="type-title text-[var(--color-text-main)]">{session.bookTitle}</div>
           </div>
           {hasChangeSummary || isChangeSummaryLoading ? (
-            <div className="rounded-lg border border-[var(--color-accent-subtle)] bg-[var(--color-text-on-accent)] px-4 py-3 text-sm text-[var(--color-text-main)]">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-secondary)]">Reflection updates</div>
-              <div className="mt-2 text-sm leading-6 text-[var(--color-text-main)]">
+            <div className="type-body rounded-lg border border-[var(--color-accent-subtle)] bg-[var(--color-text-on-accent)] px-4 py-3 text-[var(--color-text-main)]">
+              <div className="type-small uppercase tracking-wide text-[var(--color-secondary)]">Reflection updates</div>
+              <div className="type-body mt-2 text-[var(--color-text-main)]">
                 {isChangeSummaryLoading ? "Give me a second to summarize what changed..." : changeSummaryContent}
               </div>
             </div>
@@ -1524,14 +1524,14 @@ function ReflectionCompleteScreen({
           <button
             type="button"
             onClick={onBackToBook}
-            className="w-full rounded-full bg-[var(--color-accent)] px-5 py-3 text-base font-semibold text-[var(--color-text-on-accent)] transition hover:bg-[var(--color-accent-hover)]"
+            className="type-button w-full rounded-full bg-[var(--color-accent)] px-5 py-3 text-[var(--color-text-on-accent)] transition hover:bg-[var(--color-accent-hover)]"
           >
             Back to Book
           </button>
           <button
             type="button"
             onClick={onStartNewNote}
-            className="w-full rounded-full border border-transparent px-5 py-3 text-base font-semibold text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
+            className="type-button w-full rounded-full border border-transparent px-5 py-3 text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
           >
             Start a new note
           </button>
@@ -1570,13 +1570,13 @@ function SummarySheet({ open, onClose, session, highlights, onCharacterClick }) 
               {/* Sheet header with context + dismiss */}
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="text-xs text-[var(--color-secondary)]">{session.bookTitle}</div>
-                  <div className="text-2xl font-medium text-[var(--color-text-main)]">{session.chapterTitle}</div>
+                  <div className="type-caption text-[var(--color-secondary)]">{session.bookTitle}</div>
+                  <div className="type-h2 text-[var(--color-text-main)]">{session.chapterTitle}</div>
                 </div>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="text-sm font-medium text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
+                  className="type-button text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
                 >
                   Done
                 </button>
@@ -1629,41 +1629,41 @@ function CharacterBottomSheet({ open, onClose, name, role, shortBio, relationshi
             <div className="mx-auto flex h-full w-full max-w-xl flex-col gap-4 overflow-hidden">
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="text-xs text-[var(--color-secondary)]">Character</div>
-                  <div className="text-2xl font-medium text-[var(--color-text-main)]">{name || "Unknown"}</div>
+                  <div className="type-caption text-[var(--color-secondary)]">Character</div>
+                  <div className="type-h2 text-[var(--color-text-main)]">{name || "Unknown"}</div>
                 </div>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="text-sm font-medium text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
+                  className="type-button text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
                 >
                   Done
                 </button>
               </div>
               <div className="rounded-lg bg-[var(--color-surface)] p-4">
                 {isLoading ? (
-                  <div className="text-sm text-[var(--color-secondary)]">Generating a quick bio…</div>
+                  <div className="type-body text-[var(--color-secondary)]">Generating a quick bio…</div>
                 ) : (
                   <div className="space-y-2">
-                    <div className="text-sm text-[var(--color-secondary)]">{role || "Role not clear yet"}</div>
-                    <div className="text-sm leading-6 text-[var(--color-text-main)]">
+                    <div className="type-body text-[var(--color-secondary)]">{role || "Role not clear yet"}</div>
+                    <div className="type-body text-[var(--color-text-main)]">
                       {shortBio || "I’ll write a bio once there’s more about this character in your notes."}
                     </div>
                   </div>
                 )}
               </div>
               <div className="rounded-lg bg-[var(--color-surface)] p-4">
-                <div className="text-sm font-semibold text-[var(--color-text-main)]">Relationships</div>
+                <div className="type-title text-[var(--color-text-main)]">Relationships</div>
                 <div className="mt-2 space-y-2">
                   {filteredRelationships.length > 0 ? (
                     filteredRelationships.map((r, idx) => (
-                      <div key={`${idx}-${r.slice(0, 12)}`} className="flex items-start gap-2 text-sm">
+                      <div key={`${idx}-${r.slice(0, 12)}`} className="type-body flex items-start gap-2">
                         <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-secondary)]" aria-hidden />
                         <span className="flex-1 text-[var(--color-text-main)]">{r}</span>
                       </div>
                     ))
                   ) : (
-                    <div className="text-sm text-[var(--color-text-disabled)]">No relationships captured yet</div>
+                    <div className="type-body text-[var(--color-text-disabled)]">No relationships captured yet</div>
                   )}
                 </div>
               </div>
@@ -1671,7 +1671,7 @@ function CharacterBottomSheet({ open, onClose, name, role, shortBio, relationshi
                 <div>
                   <a
                     href={seeMoreHref}
-                    className="inline-flex items-center justify-center rounded-full bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-[var(--color-text-on-accent)] hover:bg-[var(--color-accent-hover)]"
+                    className="type-button inline-flex items-center justify-center rounded-full bg-[var(--color-accent)] px-4 py-2 text-[var(--color-text-on-accent)] hover:bg-[var(--color-accent-hover)]"
                   >
                     See more
                   </a>
@@ -3043,14 +3043,14 @@ export default function JournalingPage(props) {
             <button
               type="button"
               onClick={handleExitReflection}
-              className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
+              className="type-button flex items-center gap-2 text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
             >
-              <BackArrowIcon />
+              <BackArrowIcon className="h-6 w-6 text-[var(--color-text-accent)]" />
               <span>Back</span>
             </button>
             <div className="text-center">
-              <div className="text-xs uppercase tracking-wide text-[var(--color-secondary)]">Reflection</div>
-              <div className="text-xl font-medium text-[var(--color-text-main)]" style={{ fontFamily: "var(--font-h2)" }}>
+              <div className="type-caption uppercase tracking-wide text-[var(--color-secondary)]">Reflection</div>
+              <div className="type-h2 text-[var(--color-text-main)]">
                 {session.chapterTitle}
               </div>
             </div>
@@ -3070,24 +3070,23 @@ export default function JournalingPage(props) {
             <button
               type="button"
               onClick={() => setShowSummary((prev) => !prev)}
-              className="flex w-full items-center justify-center gap-2 border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-sm font-medium text-[var(--color-text-main)] transition hover:text-[var(--color-text-accent)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="type-button flex w-full items-center justify-center gap-2 border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-[var(--color-text-main)] transition hover:text-[var(--color-text-accent)] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isUpdatingSummary}
             >
               <span>{isUpdatingSummary ? "Capturing notes..." : "See Notes"}</span>
               <ChevronDown open={showSummary} />
             </button>
           ) : isUpdatingSummary ? (
-            <div className="flex w-full items-center justify-center border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-sm font-medium text-[var(--color-secondary)]">
+            <div className="type-button flex w-full items-center justify-center border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-[var(--color-secondary)]">
               <span>Capturing notes...</span>
             </div>
           ) : null}
           <footer className="px-0 pb-6 pt-3">
             <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4">
-              {summaryError ? <div className="text-xs text-red-500">{summaryError}</div> : null}
+              {summaryError ? <div className="type-caption text-red-500">{summaryError}</div> : null}
               <form
                 onSubmit={handleReflectionFormSubmit}
                 className={`flex items-end gap-2 rounded-lg bg-[var(--color-surface)] px-3 py-2 ${isReflectionComposerLocked || isFetchingReflectionQuestion ? "opacity-60" : ""}`}
-                aria-disabled={isReflectionComposerLocked || isFetchingReflectionQuestion}
               >
                 <textarea
                   ref={reflectionInputRef}
@@ -3104,7 +3103,7 @@ export default function JournalingPage(props) {
                         ? "Give me a second..."
                         : "What are you thinking?"
                   }
-                  className="h-12 flex-1 resize-none bg-transparent text-sm leading-6 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] disabled:cursor-not-allowed disabled:text-[var(--color-text-disabled)]"
+                  className="type-body h-12 flex-1 resize-none bg-transparent text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] disabled:cursor-not-allowed disabled:text-[var(--color-text-disabled)]"
                 />
                 <button
                   type="submit"
@@ -3178,11 +3177,11 @@ export default function JournalingPage(props) {
               className="flex items-center justify-center rounded-full p-1.5 text-[var(--color-text-main)] transition hover:text-[var(--color-text-main)]/80"
               aria-label="Back to book"
             >
-              <BackArrowIcon className="h-5 w-5 text-[var(--color-text-main)]" />
+              <BackArrowIcon className="h-6 w-6 text-[var(--color-text-main)]" />
             </button>
             <div>
-              <div className="text-xs text-[var(--color-secondary)]">{session.bookTitle}</div>
-              <div className="text-2xl font-medium" style={{ fontFamily: "var(--font-h2)" }}>
+              <div className="type-caption text-[var(--color-secondary)]">{session.bookTitle}</div>
+              <div className="type-h2">
                 {session.chapterTitle}
               </div>
             </div>
@@ -3190,7 +3189,7 @@ export default function JournalingPage(props) {
           <button
             type="button"
             onClick={handleDoneClick}
-            className="text-sm font-medium text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
+            className="type-button text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
           >
             Done
           </button>
@@ -3211,14 +3210,14 @@ export default function JournalingPage(props) {
             <button
               type="button"
               onClick={() => setShowSummary((prev) => !prev)}
-              className="flex w-full items-center justify-center gap-2 border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-sm font-medium text-[var(--color-text-main)] transition hover:text-[var(--color-text-accent)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="type-button flex w-full items-center justify-center gap-2 border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-[var(--color-text-main)] transition hover:text-[var(--color-text-accent)] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isUpdatingSummary}
             >
               <span>{isUpdatingSummary ? "Capturing notes..." : "See Notes"}</span>
               <ChevronDown open={showSummary} />
             </button>
           ) : isUpdatingSummary ? (
-            <div className="flex w-full items-center justify-center border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-sm font-medium text-[var(--color-secondary)]">
+            <div className="type-button flex w-full items-center justify-center border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-[var(--color-secondary)]">
               <span>Capturing notes...</span>
             </div>
           ) : null}
@@ -3226,14 +3225,13 @@ export default function JournalingPage(props) {
           <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4">
             {/* Error state when summary refresh fails */}
             {summaryError ? (
-              <div className="text-xs text-red-500">{summaryError}</div>
+              <div className="type-caption text-red-500">{summaryError}</div>
             ) : null}
 
             {/* Message input and submit affordance */}
             <form
               onSubmit={handleFormSubmit}
               className={`flex items-end gap-2 rounded-lg bg-[var(--color-surface)] px-3 py-2 ${isComposerLocked ? "opacity-60" : ""}`}
-              aria-disabled={isComposerLocked}
             >
               <textarea
                 ref={composerInputRef}
@@ -3242,7 +3240,7 @@ export default function JournalingPage(props) {
                 onKeyDown={handleKeyDown}
                 rows={1}
                 placeholder="What's on your mind?"
-                className="h-10 flex-1 resize-none bg-transparent text-sm leading-6 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] disabled:cursor-not-allowed disabled:text-[var(--color-text-disabled)]"
+                className="type-body h-10 flex-1 resize-none bg-transparent text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] disabled:cursor-not-allowed disabled:text-[var(--color-text-disabled)]"
                 disabled={isComposerLocked}
                 aria-disabled={isComposerLocked}
               />

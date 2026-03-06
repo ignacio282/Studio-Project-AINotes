@@ -1,18 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import AppBottomNav from "@/components/navigation/AppBottomNav";
+import SignOutButton from "@/components/SignOutButton";
 import { fetchBooksDashboardData } from "@/lib/books/dashboard-data";
+import HomeLoading from "./loading";
 import { requireUser } from "@/lib/supabase/require-user";
-
-const FALLBACK_SUMMARY =
-  "Darrow is a red, he and his people are in the bottom of human society. He was sentenced to death but he was saved by someone unknown to him. He has a new purpose now, he will save his people.";
-
-const FALLBACK_CHARACTERS = [
-  { name: "Darrow", subtitle: "Rebel leader, Red, Passionate", slug: "" },
-  { name: "Mustang", subtitle: "Rebel leader, Red, Passionate", slug: "" },
-  { name: "Ragnar", subtitle: "Rebel leader, Red, Passionate", slug: "" },
-  { name: "Cassius", subtitle: "Rebel leader, Red, Passionate", slug: "" },
-];
+import { resolveQaState } from "@/lib/qa/state";
 
 function TodayIcon({ className = "" }) {
   return (
@@ -46,10 +39,21 @@ function SwapVertIcon({ className = "" }) {
   );
 }
 
+function AddIcon({ className = "" }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden>
+      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function ChevronForwardIcon({ className = "" }) {
   return (
-    <svg viewBox="0 0 18 18" className={className} aria-hidden>
-      <path d="M9.45 9 6 5.55 7.05 4.5 11.55 9l-4.5 4.5L6 12.45 9.45 9Z" fill="currentColor" />
+    <svg viewBox="0 0 20 20" className={className} aria-hidden>
+      <path
+        fill="currentColor"
+        d="M7.22 4.47a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 1 1-1.06-1.06L10.94 10 7.22 6.28a.75.75 0 0 1 0-1.06Z"
+      />
     </svg>
   );
 }
@@ -83,7 +87,7 @@ function ActionLink({ href, icon, label, ariaLabel }) {
   return (
     <Link href={href} aria-label={ariaLabel} className="flex flex-1 items-center justify-center gap-2 px-1 text-[#4C7B75]">
       <span className="h-6 w-6">{icon}</span>
-      <span className="text-[14px] leading-5 font-medium" style={{ fontFamily: "Inter, sans-serif", letterSpacing: "0.01em" }}>
+      <span className="type-button tracking-[0.01em]">
         {label}
       </span>
     </Link>
@@ -92,208 +96,290 @@ function ActionLink({ href, icon, label, ariaLabel }) {
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }) {
+  const query = (await searchParams) || {};
+  const qaState = resolveQaState(query);
+  if (qaState === "loading") return <HomeLoading />;
+  if (qaState === "error") {
+    throw new Error("QA forced error state on Home page.");
+  }
+
   const { supabase, user } = await requireUser();
   if (!user) {
     redirect("/login");
   }
 
   const { books, currentBook } = await fetchBooksDashboardData(supabase, user.id);
-  const hasCurrentBook = Boolean(currentBook);
-  const switchHref = books.length > 1 ? "/library/switch" : "/library";
+  const effectiveBooks = qaState === "empty" ? [] : books;
+  const effectiveCurrentBook = qaState === "empty" ? null : currentBook;
+  const hasCurrentBook = Boolean(effectiveCurrentBook);
+  const switchHref = effectiveBooks.length > 1 ? "/library/switch" : "/library";
 
-  const title = currentBook?.title?.trim() || "Red rising";
-  const author = currentBook?.author?.trim() || "Pierce Brown";
-  const startedOn = formatDate(currentBook?.firstNoteAt || currentBook?.created_at) || "9/18/2025";
-  const noteCount = Number.isFinite(Number(currentBook?.noteCount)) ? Number(currentBook.noteCount) : 3;
-  const lastChapter = Number.isFinite(Number(currentBook?.lastChapter)) ? Number(currentBook.lastChapter) : 20;
+  const title = effectiveCurrentBook?.title?.trim() || "No current book";
+  const author = effectiveCurrentBook?.author?.trim() || (hasCurrentBook ? "Author not set" : "Add a book to begin");
+  const startedOn = formatDate(effectiveCurrentBook?.firstNoteAt || effectiveCurrentBook?.created_at) || "";
+  const noteCount = Number.isFinite(Number(effectiveCurrentBook?.noteCount)) ? Number(effectiveCurrentBook.noteCount) : 0;
+  const lastChapter = Number.isFinite(Number(effectiveCurrentBook?.lastChapter)) ? Number(effectiveCurrentBook.lastChapter) : null;
   const totalChapters =
-    Number.isFinite(Number(currentBook?.totalChapters)) && Number(currentBook.totalChapters) > 0
-      ? Number(currentBook.totalChapters)
-      : 40;
-  const progressPercent = formatPercent(
-    hasCurrentBook ? currentBook?.progressPercent : Math.round((lastChapter * 100) / totalChapters),
-  );
-  const daysAgoLabel = currentBook?.daysAgoLabel?.trim() || "Last reading session 3 days ago.";
-  const storySoFar = currentBook?.storySoFar?.trim() || FALLBACK_SUMMARY;
+    Number.isFinite(Number(effectiveCurrentBook?.totalChapters)) && Number(effectiveCurrentBook.totalChapters) > 0
+      ? Number(effectiveCurrentBook.totalChapters)
+      : null;
+  const progressPercent = formatPercent(effectiveCurrentBook?.progressPercent ?? 0);
+  const daysAgoLabel = hasCurrentBook
+    ? effectiveCurrentBook?.daysAgoLabel?.trim() || "No reading sessions logged yet."
+    : "Add your first book to start tracking progress.";
+  const storySoFar = hasCurrentBook
+    ? effectiveCurrentBook?.storySoFar?.trim() || "No chapter summary yet. Write a note to build your story summary."
+    : "Your chapter summaries will appear here after you add a book and write your first note.";
   const baseCharacters =
-    hasCurrentBook && Array.isArray(currentBook?.topCharacters) && currentBook.topCharacters.length > 0
-      ? currentBook.topCharacters.slice(0, 4)
+    hasCurrentBook && Array.isArray(effectiveCurrentBook?.topCharacters) && effectiveCurrentBook.topCharacters.length > 0
+      ? effectiveCurrentBook.topCharacters.slice(0, 4)
       : [];
-  const paddedCharacters = [...baseCharacters];
-  for (const fallbackCharacter of FALLBACK_CHARACTERS) {
-    if (paddedCharacters.length >= 4) break;
-    const exists = paddedCharacters.some(
-      (character) =>
-        String(character?.name || "").toLowerCase() ===
-        String(fallbackCharacter.name).toLowerCase(),
-    );
-    if (!exists) {
-      paddedCharacters.push(fallbackCharacter);
-    }
-  }
-  const topCharacters = paddedCharacters.slice(0, 4);
+  const topCharacters = baseCharacters.slice(0, 4);
   const characterRows = pairCharacters(topCharacters);
-  const coverSrc = currentBook?.cover_url || "/figma/home-book-cover.png";
+  const coverSrc = effectiveCurrentBook?.cover_url || "";
+  const canShowProgress = hasCurrentBook && totalChapters && lastChapter;
+  const primaryActionHref = hasCurrentBook ? `/books/${encodeURIComponent(effectiveCurrentBook.id)}` : "/books/new";
+  const primaryActionLabel = hasCurrentBook ? "Explore book" : "Add book";
 
   return (
     <div className="min-h-screen bg-[#FAF9F5] text-[#2A2A2A]">
       <main className="mx-auto w-full max-w-[390px]">
-        <section className="relative h-[282px]">
+        <section className={`relative ${hasCurrentBook ? "h-[282px]" : "h-[284px]"}`}>
           <div className="h-[148px] bg-[#5A8A84] px-4 py-4">
-            <h1 className="text-[24px] leading-8 font-medium text-white" style={{ fontFamily: "Inter, sans-serif" }}>
-              Currently reading
-            </h1>
+            <div className="flex items-start justify-between gap-3">
+              <h1 className="type-h1 text-white">
+                Currently reading
+              </h1>
+              <SignOutButton className="type-button rounded-full border border-white/60 px-3 py-1 text-white transition hover:bg-white/10" />
+            </div>
           </div>
 
-          <div className="absolute left-6 right-6 top-[62px] flex flex-col items-center gap-4 rounded-[8px] bg-[#F0EEE5] p-4">
-            <div className="flex h-[132px] w-full items-center gap-4">
-              <div className="h-[132px] w-[89px] overflow-hidden rounded-[8px]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={coverSrc} alt={title} className="h-full w-full object-cover" />
-              </div>
-
-              <div className="flex min-w-0 flex-1 flex-col justify-center gap-3 self-stretch">
-                <div className="w-full">
-                  <div className="truncate text-[24px] leading-8 font-medium text-[#2F2F2F]" style={{ fontFamily: "Inter, sans-serif" }}>
-                    {title}
-                  </div>
-                  <div className="truncate text-[14px] leading-[22px] text-[#4A4A4A]" style={{ fontFamily: "Inter, sans-serif" }}>
-                    By {author}
-                  </div>
+          {hasCurrentBook ? (
+            <div className="absolute left-6 right-6 top-[62px] flex flex-col items-center gap-4 rounded-[8px] bg-[#F0EEE5] p-4">
+              <div className="flex h-[132px] w-full items-center gap-4">
+                <div className="h-[132px] w-[89px] overflow-hidden rounded-[8px]">
+                  {coverSrc ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={coverSrc} alt={title} className="h-full w-full object-cover" />
+                    </>
+                  ) : (
+                    <div className="type-caption flex h-full w-full items-center justify-center bg-white/70 px-2 text-center text-[#595853]">
+                      No cover yet
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex flex-col gap-1">
-                  <div className="flex h-5 items-center gap-1 text-[#595853]">
-                    <TodayIcon className="h-3 w-3 text-[#5A8A84]" />
-                    <span className="text-[14px] leading-[22px]" style={{ fontFamily: "Inter, sans-serif" }}>
-                      Started on {startedOn}
-                    </span>
+                <div className="flex min-w-0 flex-1 flex-col justify-center gap-3 self-stretch">
+                  <div className="w-full">
+                    <div className="type-h1 truncate text-[#2F2F2F]">
+                      {title}
+                    </div>
+                    <div className="type-body truncate text-[#4A4A4A]">
+                      By {author}
+                    </div>
                   </div>
-                  <div className="flex h-5 items-center gap-1 text-[#595853]">
-                    <FolderIcon className="h-3 w-3 text-[#5A8A84]" />
-                    <span className="text-[14px] leading-[22px]" style={{ fontFamily: "Inter, sans-serif" }}>
-                      {noteCount} notes
-                    </span>
+
+                  <div className="flex flex-col gap-1">
+                    <div className="flex h-5 items-center gap-1 text-[#595853]">
+                      <TodayIcon className="h-3 w-3 text-[#5A8A84]" />
+                      <span className="type-body">
+                        {startedOn ? `Started on ${startedOn}` : "Start your first session"}
+                      </span>
+                    </div>
+                    <div className="flex h-5 items-center gap-1 text-[#595853]">
+                      <FolderIcon className="h-3 w-3 text-[#5A8A84]" />
+                      <span className="type-body">
+                        {noteCount} notes
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="h-px w-full bg-[#D0CEC7]" />
+              <div className="h-px w-full bg-[#D0CEC7]" />
 
-            <div className="flex w-full items-center gap-1">
-              <ActionLink
-                href={hasCurrentBook ? `/books/${encodeURIComponent(currentBook.id)}` : "/books/new"}
-                icon={<OpenInNewIcon className="h-6 w-6" />}
-                label="Explore book"
-                ariaLabel="Explore book"
-              />
-              <div className="h-6 w-px bg-[#D0CEC7]" />
-              <ActionLink href={switchHref} icon={<SwapVertIcon className="h-6 w-6" />} label="Switch book" ariaLabel="Switch book" />
-            </div>
-          </div>
-        </section>
-
-        <section className="px-6 py-4">
-          <div className="space-y-1">
-            <h2 className="text-[20px] leading-7 font-normal text-[#2A2A2A]" style={{ fontFamily: "Inter, sans-serif" }}>
-              The story so far
-            </h2>
-            <p className="text-[12px] leading-4 text-[#A19F99]" style={{ fontFamily: "Inter, sans-serif" }}>
-              Last chapter read: Chapter {lastChapter}
-            </p>
-            <p
-              className="pt-1 text-[14px] leading-[22px] text-[#2A2A2A] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:5] overflow-hidden"
-              style={{ fontFamily: "Inter, sans-serif" }}
-            >
-              {storySoFar}
-            </p>
-          </div>
-        </section>
-
-        <section className="px-6 py-4">
-          <div className="space-y-1">
-            <h2 className="text-[20px] leading-7 font-normal text-[#2A2A2A]" style={{ fontFamily: "Inter, sans-serif" }}>
-              Progress
-            </h2>
-            <p className="text-[12px] leading-4 text-[#A19F99]" style={{ fontFamily: "Inter, sans-serif" }}>
-              {daysAgoLabel}
-            </p>
-          </div>
-
-          <div className="mt-4 rounded-[8px] bg-[#F0EEE5] px-4 pb-6 pt-4">
-            <p className="text-[14px] leading-[22px] text-[#2A2A2A]" style={{ fontFamily: "Inter, sans-serif" }}>
-              On chapter {lastChapter} of {totalChapters}
-            </p>
-            <div className="mt-2 flex items-end gap-4">
-              <div className="h-4 flex-1 overflow-hidden rounded-[2px] bg-[#C0C0BE]">
-                <div className="h-full rounded-[2px] bg-[#4C7B75]" style={{ width: `${progressPercent}%` }} />
-              </div>
-              <div className="h-5 w-[34px] text-[16px] leading-6 font-medium text-[#2A2A2A]" style={{ fontFamily: "Inter, sans-serif" }}>
-                {progressPercent}%
+              <div className="flex w-full items-center gap-1">
+                <ActionLink
+                  href={primaryActionHref}
+                  icon={<OpenInNewIcon className="h-6 w-6" />}
+                  label={primaryActionLabel}
+                  ariaLabel={primaryActionLabel}
+                />
+                <div className="h-6 w-px bg-[#D0CEC7]" />
+                <ActionLink
+                  href={switchHref}
+                  icon={<SwapVertIcon className="h-6 w-6" />}
+                  label={effectiveBooks.length > 1 ? "Switch book" : "Library"}
+                  ariaLabel={effectiveBooks.length > 1 ? "Switch book" : "Library"}
+                />
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="absolute left-6 right-6 top-[62px] rounded-[8px] bg-[#F0EEE5] p-4">
+              <h2 className="type-h1 text-[#2F2F2F]">
+                Start your first book
+              </h2>
+              <p className="type-body mt-3 text-[#595853]">
+                Track what you read, organize your thoughts, and build deeper understanding with the help of your AI assistant.
+              </p>
+              <Link href="/books/new" className="mt-4 inline-flex items-center gap-2 px-1 text-[#4C7B75]">
+                <AddIcon className="h-6 w-6" />
+                <span className="type-button">Add a book</span>
+              </Link>
+            </div>
+          )}
         </section>
 
-        <section className="px-6 py-4 pb-32">
-          <div className="space-y-1">
-            <h2 className="text-[20px] leading-7 font-normal text-[#2A2A2A]" style={{ fontFamily: "Inter, sans-serif" }}>
-              Important characters
-            </h2>
-            <p className="text-[12px] leading-4 text-[#A19F99]" style={{ fontFamily: "Inter, sans-serif" }}>
-              Characters that appear the most
-            </p>
-          </div>
+        {hasCurrentBook ? (
+          <>
+            <section className="px-6 py-4">
+              <div className="space-y-1">
+                <h2 className="type-h3 text-[#2A2A2A]">
+                  The story so far
+                </h2>
+                <p className="type-caption text-[#A19F99]">
+                  {lastChapter ? `Last chapter read: Chapter ${lastChapter}` : "No chapters logged yet"}
+                </p>
+                <p
+                  className="type-body pt-1 text-[#2A2A2A] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:5] overflow-hidden"
+                >
+                  {storySoFar}
+                </p>
+              </div>
+            </section>
 
-          <div className="mt-4 space-y-2">
-            {characterRows.map((row, rowIndex) => (
-              <div key={`row-${rowIndex}`} className="grid grid-cols-2 gap-2">
-                {row.map((character) => {
-                  const key = character.slug || character.name;
-                  const tile = (
-                    <div className="flex items-center justify-center gap-2 rounded-[5px] bg-[#F0EEE5] px-4 py-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-[16px] leading-6 font-medium text-[#2F2F2F]" style={{ fontFamily: "Inter, sans-serif" }}>
-                          {character.name}
-                        </div>
-                        <p className="truncate text-[12px] leading-4 text-[#595853]" style={{ fontFamily: "Inter, sans-serif" }}>
-                          {character.subtitle || "Mentioned in your notes."}
-                        </p>
-                      </div>
-                      <ChevronForwardIcon className="h-[18px] w-[18px] shrink-0 text-[#2A2A2A]" />
+            <section className="px-6 py-4">
+              <div className="space-y-1">
+                <h2 className="type-h3 text-[#2A2A2A]">
+                  Progress
+                </h2>
+                <p className="type-caption text-[#A19F99]">
+                  {daysAgoLabel}
+                </p>
+              </div>
+
+              <div className="mt-4 rounded-[8px] bg-[#F0EEE5] px-4 pb-6 pt-4">
+                <p className="type-body text-[#2A2A2A]">
+                  {canShowProgress
+                    ? `On chapter ${lastChapter} of ${totalChapters}`
+                    : "Progress will appear after you log chapter notes."}
+                </p>
+                <div className="mt-2 flex items-end gap-4">
+                  <div className="h-4 flex-1 overflow-hidden rounded-[2px] bg-[#C0C0BE]">
+                    <div className="h-full rounded-[2px] bg-[#4C7B75]" style={{ width: `${progressPercent}%` }} />
+                  </div>
+                  <div className="type-title h-5 w-[34px] text-[#2A2A2A]">
+                    {progressPercent}%
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="px-6 py-4 pb-32">
+              <div className="space-y-1">
+                <h2 className="type-h3 text-[#2A2A2A]">
+                  Important characters
+                </h2>
+                <p className="type-caption text-[#A19F99]">
+                  Characters that appear the most
+                </p>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {characterRows.length > 0 ? (
+                  characterRows.map((row, rowIndex) => (
+                    <div key={`row-${rowIndex}`} className="grid grid-cols-2 gap-2">
+                      {row.map((character) => {
+                        const key = character.slug || character.name;
+                        const tile = (
+                          <div className="flex items-center justify-center gap-2 rounded-[5px] bg-[#F0EEE5] px-4 py-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="type-title truncate text-[#2F2F2F]">
+                                {character.name}
+                              </div>
+                              <p className="type-caption truncate text-[#595853]">
+                                {character.subtitle || "Mentioned in your notes."}
+                              </p>
+                            </div>
+                            <ChevronForwardIcon className="h-5 w-5 shrink-0 text-[#595853]" />
+                          </div>
+                        );
+
+                        if (character.slug && hasCurrentBook) {
+                          return (
+                            <Link
+                              key={key}
+                              href={`/books/${encodeURIComponent(effectiveCurrentBook.id)}/characters/${encodeURIComponent(character.slug)}`}
+                            >
+                              {tile}
+                            </Link>
+                          );
+                        }
+
+                        return (
+                          <div key={key}>
+                            {tile}
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-
-                  if (character.slug && hasCurrentBook) {
-                    return (
-                      <Link
-                        key={key}
-                        href={`/books/${encodeURIComponent(currentBook.id)}/characters/${encodeURIComponent(character.slug)}`}
-                      >
-                        {tile}
-                      </Link>
-                    );
-                  }
-
-                  return (
-                    <div key={key}>
-                      {tile}
-                    </div>
-                  );
-                })}
+                  ))
+                ) : (
+                  <div className="type-body rounded-[8px] bg-[#F0EEE5] px-4 py-5 text-[#595853]">
+                    Important characters will show up here once they are mentioned in your notes.
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-        </section>
+            </section>
+          </>
+        ) : (
+          <>
+            <section className="px-6 py-4">
+              <div className="space-y-1">
+                <h2 className="type-h3 text-[#2A2A2A]">
+                  No summary yet
+                </h2>
+                <p className="type-body text-[#9C9A95]">
+                  After your first reading session, your evolving story summary will appear here. It grows as you reflect.
+                </p>
+              </div>
+            </section>
+
+            <section className="px-6 py-4">
+              <div className="space-y-1">
+                <h2 className="type-h3 text-[#2A2A2A]">
+                  Progress
+                </h2>
+                <p className="type-body text-[#9C9A95]">
+                  Log your first reading session to begin tracking chapters and momentum.
+                </p>
+              </div>
+            </section>
+
+            <section className="px-6 py-4 pb-32">
+              <div className="space-y-1">
+                <h2 className="type-h3 text-[#2A2A2A]">
+                  Important characters
+                </h2>
+                <p className="type-body text-[#9C9A95]">
+                  Mention characters in your notes and we will organize them here automatically.
+                </p>
+                <p className="type-caption pt-1 italic text-[#9C9A95]">
+                  Tip: Tap a character later to see their evolving profile.
+                </p>
+              </div>
+            </section>
+          </>
+        )}
       </main>
 
       <AppBottomNav
         active="home"
         hasActionContext={hasCurrentBook}
-        currentBookId={currentBook?.id || ""}
-        currentBookTitle={currentBook?.title || ""}
+        currentBookId={effectiveCurrentBook?.id || ""}
+        currentBookTitle={effectiveCurrentBook?.title || ""}
       />
     </div>
   );

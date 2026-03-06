@@ -24,22 +24,6 @@ function LibraryIcon({ className = "" }) {
   );
 }
 
-function StatsIcon({ className = "" }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden>
-      <path d="M19 3H5C3.9 3 3 3.9 3 5V19c0 1.1.9 2 2 2H19c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2Zm0 16H5V5H19v14ZM7 10h2v7H7v-7Zm4-3h2v10h-2V7Zm4 6h2v4h-2v-4Z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function UserIcon({ className = "" }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden>
-      <path d="M12 12c-1.1 0-2.042-.392-2.825-1.175C8.392 10.042 8 9.1 8 8c0-1.1.392-2.042 1.175-2.825C9.958 4.392 10.9 4 12 4c1.1 0 2.042.392 2.825 1.175C15.608 5.958 16 6.9 16 8c0 1.1-.392 2.042-1.175 2.825C14.042 11.608 13.1 12 12 12ZM4 20v-2.8c0-.567.146-1.088.438-1.563.291-.475.679-.837 1.162-1.087 1.033-.517 2.083-.904 3.15-1.163A13.653 13.653 0 0 1 12 13c1.1 0 2.183.129 3.25.387 1.067.258 2.117.646 3.15 1.163.483.25.871.612 1.163 1.087.291.475.437.996.437 1.563V20H4Zm2-2h12v-.8a.797.797 0 0 0-.138-.5.956.956 0 0 0-.362-.35 13.16 13.16 0 0 0-2.725-1.012A11.998 11.998 0 0 0 12 15a11.999 11.999 0 0 0-2.775.337A13.16 13.16 0 0 0 6.5 16.35a.956.956 0 0 0-.362.35.797.797 0 0 0-.138.5v.8ZM12 10c.55 0 1.021-.196 1.413-.587.391-.392.587-.863.587-1.413s-.196-1.021-.587-1.413C13.021 6.196 12.55 6 12 6s-1.021.196-1.413.587C10.196 6.979 10 7.45 10 8s.196 1.021.587 1.413C10.979 9.804 11.45 10 12 10Z" fill="currentColor" />
-    </svg>
-  );
-}
-
 function PlusIcon({ className = "" }) {
   return (
     <svg viewBox="0 0 40 40" className={className} aria-hidden>
@@ -51,9 +35,10 @@ function PlusIcon({ className = "" }) {
 function NoteIcon({ className = "" }) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden>
-      <path d="M6 4h12a2 2 0 0 1 2 2v9.5L14.5 21H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M14 15h6" stroke="currentColor" strokeWidth="2" />
-      <path d="M8 9h8M8 13h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path
+        d="M5 19H14V14H19V5H5V19ZM5 21C4.45 21 3.979 20.8043 3.587 20.413C3.19567 20.021 3 19.55 3 19V5C3 4.45 3.19567 3.979 3.587 3.587C3.979 3.19567 4.45 3 5 3H19C19.55 3 20.021 3.19567 20.413 3.587C20.8043 3.979 21 4.45 21 5V15L15 21H5ZM7 14V12H12V14H7ZM7 10V8H17V10H7Z"
+        fill="#2A2A2A"
+      />
     </svg>
   );
 }
@@ -61,10 +46,10 @@ function NoteIcon({ className = "" }) {
 function AssistantIcon({ className = "" }) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden>
-      <rect x="5" y="6" width="14" height="9" rx="3" fill="none" stroke="currentColor" strokeWidth="2" />
-      <path d="M7 18h10v2H7z" fill="none" stroke="currentColor" strokeWidth="2" />
-      <circle cx="10" cy="10.5" r="1" fill="currentColor" />
-      <circle cx="14" cy="10.5" r="1" fill="currentColor" />
+      <path
+        d="M4 21V16C4 15.45 4.19583 14.9792 4.5875 14.5875C4.97917 14.1958 5.45 14 6 14H18C18.55 14 19.0208 14.1958 19.4125 14.5875C19.8042 14.9792 20 15.45 20 16V21H4ZM9 13C7.61667 13 6.4375 12.5125 5.4625 11.5375C4.4875 10.5625 4 9.38333 4 8C4 6.61667 4.4875 5.4375 5.4625 4.4625C6.4375 3.4875 7.61667 3 9 3H15C16.3833 3 17.5625 3.4875 18.5375 4.4625C19.5125 5.4375 20 6.61667 20 8C20 9.38333 19.5125 10.5625 18.5375 11.5375C17.5625 12.5125 16.3833 13 15 13H9ZM6 19H18V16H6V19ZM9 11H15C15.8333 11 16.5417 10.7083 17.125 10.125C17.7083 9.54167 18 8.83333 18 8C18 7.16667 17.7083 6.45833 17.125 5.875C16.5417 5.29167 15.8333 5 15 5H9C8.16667 5 7.45833 5.29167 6.875 5.875C6.29167 6.45833 6 7.16667 6 8C6 8.83333 6.29167 9.54167 6.875 10.125C7.45833 10.7083 8.16667 11 9 11ZM9 9C9.28333 9 9.52083 8.90417 9.7125 8.7125C9.90417 8.52083 10 8.28333 10 8C10 7.71667 9.90417 7.47917 9.7125 7.2875C9.52083 7.09583 9.28333 7 9 7C8.71667 7 8.47917 7.09583 8.2875 7.2875C8.09583 7.47917 8 7.71667 8 8C8 8.28333 8.09583 8.52083 8.2875 8.7125C8.47917 8.90417 8.71667 9 9 9ZM15 9C15.2833 9 15.5208 8.90417 15.7125 8.7125C15.9042 8.52083 16 8.28333 16 8C16 7.71667 15.9042 7.47917 15.7125 7.2875C15.5208 7.09583 15.2833 7 15 7C14.7167 7 14.4792 7.09583 14.2875 7.2875C14.0958 7.47917 14 7.71667 14 8C14 8.28333 14.0958 8.52083 14.2875 8.7125C14.4792 8.90417 14.7167 9 15 9Z"
+        fill="#2A2A2A"
+      />
     </svg>
   );
 }
@@ -84,13 +69,13 @@ function ActionOption({ title, subtitle, icon, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-2xl bg-[var(--color-surface)] px-4 py-5 text-center transition hover:bg-[color:var(--rc-color-accent-subtle)/45%]"
+      className="w-full rounded-[8px] bg-[#F0EEE5] p-4 text-center transition hover:bg-[color:var(--rc-color-accent-subtle)/45%]"
     >
-      <span className="mx-auto block w-fit text-[var(--color-text-main)]">{icon}</span>
-      <div className="mt-2 text-[20px] leading-7 font-semibold text-[var(--color-text-main)]" style={{ fontFamily: "var(--font-h3)" }}>
-        {title}
+      <div className="mx-auto flex w-full max-w-[326px] flex-col items-center text-center">
+        <span className="flex h-6 w-6 items-center justify-center">{icon}</span>
+        <div className="type-button text-[#2A2A2A]">{title}</div>
+        <div className="type-caption text-[#595853]">{subtitle}</div>
       </div>
-      <div className="mt-1 text-sm leading-[22px] text-[var(--color-secondary)]">{subtitle}</div>
     </button>
   );
 }
@@ -139,27 +124,20 @@ export default function AppBottomNav({
       <div className="pointer-events-none fixed bottom-6 left-1/2 z-40 -translate-x-1/2 px-3 sm:px-6">
         <div className="mx-auto w-fit max-w-2xl">
           <div
-            className="pointer-events-auto flex items-center justify-center gap-6 rounded-[61px] bg-white px-4 py-3"
+            className="pointer-events-auto flex items-center justify-center gap-8 rounded-[61px] bg-white px-5 py-3"
             style={{ boxShadow: NAV_SHELL_SHADOW }}
           >
             <Link href="/home" className={`flex flex-col items-center justify-center ${active === "home" ? "text-[#2A2A2A]" : "text-[#A19F99]"}`}>
               <HomeIcon className="h-6 w-6" />
-              <span className="text-[14px] leading-5 font-medium" style={{ fontFamily: "Inter, var(--font-title), sans-serif" }}>
+              <span className="type-button">
                 Home
-              </span>
-            </Link>
-
-            <Link href="/library" className={`flex flex-col items-center justify-center ${active === "library" ? "text-[#2A2A2A]" : "text-[#A19F99]"}`}>
-              <LibraryIcon className="h-6 w-6" />
-              <span className="text-[14px] leading-5 font-medium" style={{ fontFamily: "Inter, var(--font-title), sans-serif" }}>
-                Library
               </span>
             </Link>
 
             <button
               type="button"
               onClick={openSheet}
-              className={`flex h-10 w-10 items-center justify-center rounded-full ${
+              className={`flex h-11 w-11 items-center justify-center rounded-full ${
                 canOpenSheet ? "bg-[#4C7B75] text-white" : "bg-[#4C7B75]/45 text-white/80"
               }`}
               aria-label="Open quick actions"
@@ -168,29 +146,12 @@ export default function AppBottomNav({
               <PlusIcon className="h-[23px] w-[23px]" />
             </button>
 
-            <button
-              type="button"
-              className="flex w-10 cursor-not-allowed flex-col items-center justify-center text-[#A19F99]"
-              aria-label="Stats (coming soon)"
-              disabled
-            >
-              <StatsIcon className="h-6 w-6" />
-              <span className="text-[14px] leading-5 font-medium" style={{ fontFamily: "Inter, var(--font-title), sans-serif" }}>
-                Stats
+            <Link href="/library" className={`flex flex-col items-center justify-center ${active === "library" ? "text-[#2A2A2A]" : "text-[#A19F99]"}`}>
+              <LibraryIcon className="h-6 w-6" />
+              <span className="type-button">
+                Library
               </span>
-            </button>
-
-            <button
-              type="button"
-              className="flex w-10 cursor-not-allowed flex-col items-center justify-center text-[#A19F99]"
-              aria-label="You (coming soon)"
-              disabled
-            >
-              <UserIcon className="h-6 w-6" />
-              <span className="text-[14px] leading-5 font-medium" style={{ fontFamily: "Inter, var(--font-title), sans-serif" }}>
-                You
-              </span>
-            </button>
+            </Link>
           </div>
         </div>
       </div>
@@ -200,7 +161,7 @@ export default function AppBottomNav({
           <motion.div className="fixed inset-0 z-50 flex items-end justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <button type="button" className="absolute inset-0 bg-black/35" onClick={closeSheet} aria-label="Close actions" />
             <motion.div
-              className="relative z-10 w-full max-w-2xl rounded-t-[36px] bg-[var(--color-page)] px-6 pb-10 pt-4"
+              className="relative z-10 w-full max-w-[390px] overflow-hidden rounded-t-[32px] bg-[#F7F6F3]"
               initial={{ y: 360 }}
               animate={{ y: 0 }}
               exit={{ y: 360 }}
@@ -214,34 +175,35 @@ export default function AppBottomNav({
                 }
               }}
             >
-              <div className="mx-auto h-1.5 w-16 rounded-full bg-[var(--color-text-main)]/95" />
-              <div className="mt-9 text-[20px] leading-7 font-semibold text-[var(--color-text-main)]" style={{ fontFamily: "var(--font-h3)" }}>
-                {safeBookTitle}
+              <div className="px-4 py-4">
+                <div className="mx-auto h-1 w-8 rounded-full bg-[#2A2A2A]" />
               </div>
-
-              <div className="mt-8 space-y-3">
-                <ActionOption
-                  title="New note"
-                  subtitle="Write down important moments, ideas, or characters."
-                  icon={<NoteIcon className="h-8 w-8" />}
-                  onClick={handleNewNote}
-                />
-                <ActionOption
-                  title="Ask assistant"
-                  subtitle="Find details, summaries, or connections in your notes."
-                  icon={<AssistantIcon className="h-8 w-8" />}
-                  onClick={handleAskAssistant}
-                />
+              <div className="px-4 pb-4 pt-4">
+                <div className="type-h3 text-[#2A2A2A]">
+                  {safeBookTitle}
+                </div>
+                <div className="mt-4 space-y-2">
+                  <ActionOption
+                    title="New note"
+                    subtitle="Write down important moments, ideas, or characters."
+                    icon={<NoteIcon className="h-6 w-6" />}
+                    onClick={handleNewNote}
+                  />
+                  <ActionOption
+                    title="Ask assistant"
+                    subtitle="Find details, summaries, or connections in your notes."
+                    icon={<AssistantIcon className="h-6 w-6" />}
+                    onClick={handleAskAssistant}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={closeSheet}
+                  className="type-title mt-4 h-10 w-full px-1 text-center text-[#4C7B75]"
+                >
+                  Close
+                </button>
               </div>
-
-              <button
-                type="button"
-                onClick={closeSheet}
-                className="mt-8 w-full py-3 text-center text-[14px] leading-5 font-medium text-[var(--color-text-accent)]"
-                style={{ fontFamily: "var(--font-title)" }}
-              >
-                Close
-              </button>
             </motion.div>
           </motion.div>
         ) : null}

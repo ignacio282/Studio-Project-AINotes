@@ -16,27 +16,27 @@ function BookCard({ book, isCurrent, onSelect, isSubmitting }) {
       } ${isSubmitting ? "opacity-60" : ""}`}
     >
       {isCurrent ? (
-        <span className="absolute -top-4 right-8 rounded-full bg-[var(--color-accent)] px-4 py-1 text-[14px] leading-5 text-[var(--color-text-on-accent)]">
+        <span className="type-button absolute -top-4 right-8 rounded-full bg-[var(--color-accent)] px-4 py-1 text-[var(--color-text-on-accent)]">
           Currently reading
         </span>
       ) : null}
 
       <div className="flex items-center gap-4">
         <div className="h-28 w-20 overflow-hidden rounded-xl bg-white/70">
-          {book?.cover_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={book.cover_url} alt={book.title} className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-xs text-[var(--color-secondary)]">
-              No cover
-            </div>
-          )}
-        </div>
+        {book?.cover_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={book.cover_url} alt={book.title} className="h-full w-full object-cover" />
+        ) : (
+          <div className="type-caption flex h-full w-full items-center justify-center text-[var(--color-secondary)]">
+            No cover
+          </div>
+        )}
+      </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[24px] leading-8 font-medium text-[var(--color-text-main)]" style={{ fontFamily: "var(--font-h2)" }}>
+          <div className="type-title truncate text-[var(--color-text-main)]">
             {book?.title || "Untitled"}
           </div>
-          <div className="truncate text-[14px] leading-[22px] text-[var(--color-secondary)]">
+          <div className="type-body truncate text-[var(--color-secondary)]">
             By {book?.author || "Unknown author"}
           </div>
         </div>
@@ -99,7 +99,7 @@ export default function SwitchBooksClient({ currentBookId = "", books = [] }) {
           />
         );
       })}
-      {error ? <div className="text-sm text-red-600">{error}</div> : null}
+      {error ? <div className="type-body text-red-600">{error}</div> : null}
     </div>
   );
 }

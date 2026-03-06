@@ -9,33 +9,33 @@ const SLIDES = [
     body: "Your reading companion to make stories easier to follow, remember, and enjoy.",
   },
   {
-    title: "How It Works?",
-    body: "Use Scriba while reading to get the most out of it",
+    title: "How it works",
+    body: "Use Scriba while you read to remember what matters.",
     numberedItems: [
       "Add a book.",
-      "Write the details you don't want to miss",
-      "Let the AI-assistant handle the rest",
+      "Write down details you do not want to forget.",
+      "Let your AI assistant organize and connect your notes.",
     ],
   },
   {
-    title: "What can the AI help with?",
-    body: "We extract characters/places, build summaries and reflections, and answer questions using only your notes.",
+    title: "What can the AI help with",
+    body: "Scriba extracts characters and places, builds summaries and reflections, and answers questions using only your notes.",
     accentLabel: "The AI will not:",
     items: [
       "Search the internet for answers.",
-      "Invent stuff, the AI only know what you know.",
-      "Spoiler anything!",
+      "Invent facts. It only uses what you captured.",
+      "Reveal spoilers beyond your logged chapters.",
     ],
   },
   {
     title: "How to make the most of it",
-    body: "Be as detailed as possible when writing your notes",
+    body: "Write with as much detail as you can when taking notes.",
     accentLabel: "What does that mean?",
     items: [
       "Include names of the characters you meet.",
       "Write about the places where things are happening.",
       "Note relationships between characters.",
-      "And don't forget to include your thoughts as well!",
+      "Include your own reactions and thoughts.",
     ],
   },
 ];
@@ -47,7 +47,6 @@ function Dots({ index, count }) {
         const isActive = i === index;
         return (
           <span
-            // eslint-disable-next-line react/no-array-index-key
             key={i}
             className={
               "h-2.5 w-2.5 rounded-full " +
@@ -63,10 +62,10 @@ function Dots({ index, count }) {
 function NumberedRow({ number, label }) {
   return (
     <div className="flex items-center gap-4">
-      <span className="text-[40px] font-semibold leading-none text-[var(--color-text-accent)]" style={{ fontFamily: "var(--font-title)" }}>
+      <span className="type-h1 text-[var(--color-text-accent)]">
         {number}
       </span>
-      <p className="body text-[var(--color-text-main)]">{label}</p>
+      <p className="type-body text-[var(--color-text-main)]">{label}</p>
     </div>
   );
 }
@@ -113,15 +112,15 @@ export default function OnboardingPage() {
         {SLIDES.map((slide, i) => (
           <section key={slide.title} className="w-full shrink-0 snap-center">
             <div className="flex h-full min-h-[70vh] flex-col justify-start pt-24">
-              <h1 className="text-5xl leading-[1.1] tracking-tight" style={{ fontFamily: "var(--font-h1)" }}>
+              <h1 className="type-h1">
                 {slide.title}
               </h1>
 
-              <p className="body mt-5 max-w-[336px] text-[var(--color-text-main)]">
+              <p className="type-body mt-5 max-w-[336px] text-[var(--color-text-main)]">
                 {i === 1 ? (
                   <>
-                    Use <span className="font-semibold text-[var(--color-text-accent)]">Scriba</span> while reading to get
-                    the most out of it
+                    Use <span className="type-button text-[var(--color-text-accent)]">Scriba</span> while you read to
+                    remember what matters.
                   </>
                 ) : (
                   slide.body
@@ -132,7 +131,6 @@ export default function OnboardingPage() {
                 <div className="mt-10 flex w-full flex-col gap-6">
                   {slide.numberedItems.map((item, idx) => (
                     <NumberedRow
-                      // eslint-disable-next-line react/no-array-index-key
                       key={idx}
                       number={idx + 1}
                       label={item}
@@ -142,10 +140,7 @@ export default function OnboardingPage() {
               ) : null}
 
               {slide.accentLabel ? (
-                <p
-                  className="mt-8 text-[40px] leading-[1.08] tracking-tight text-[var(--color-text-accent)]"
-                  style={{ fontFamily: "var(--font-title)" }}
-                >
+                <p className="type-h1 mt-8 text-[var(--color-text-accent)]">
                   {slide.accentLabel}
                 </p>
               ) : null}
@@ -154,9 +149,8 @@ export default function OnboardingPage() {
                 <div className="mt-6 flex max-w-[336px] flex-col gap-5">
                   {slide.items.map((item, idx) => (
                     <p
-                      // eslint-disable-next-line react/no-array-index-key
                       key={idx}
-                      className="body text-[var(--color-text-main)]"
+                      className="type-body text-[var(--color-text-main)]"
                     >
                       {item}
                     </p>
@@ -176,7 +170,7 @@ export default function OnboardingPage() {
             <button
               type="button"
               onClick={onNext}
-              className="button h-12 w-full max-w-[160px] rounded-xl bg-transparent text-center text-[var(--color-text-accent)]"
+              className="type-button h-12 w-full max-w-[160px] rounded-xl bg-transparent text-center text-[var(--color-text-accent)]"
             >
               Next
             </button>
@@ -184,9 +178,9 @@ export default function OnboardingPage() {
             <button
               type="button"
               onClick={onNext}
-              className="button h-12 w-full rounded-xl bg-[var(--color-accent)] px-5 text-center text-[var(--color-text-on-accent)]"
+              className="type-button h-12 w-full rounded-xl bg-[var(--color-accent)] px-5 text-center text-[var(--color-text-on-accent)]"
             >
-              Let's begin
+              Let&apos;s begin
             </button>
           )}
         </div>

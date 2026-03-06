@@ -1,0 +1,10 @@
+{
+  "/api/books/[bookId]/assistant/route": "app/api/books/[bookId]/assistant/route.js",
+  "/api/characters/route": "app/api/characters/route.js",
+  "/api/notes/route": "app/api/notes/route.js",
+  "/books/[bookId]/assistant/page": "app/books/[bookId]/assistant/page.js",
+  "/books/[bookId]/page": "app/books/[bookId]/page.js",
+  "/home/page": "app/home/page.js",
+  "/library/page": "app/library/page.js",
+  "/login/page": "app/login/page.js"
+}

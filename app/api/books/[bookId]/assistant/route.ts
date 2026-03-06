@@ -15,6 +15,15 @@ type MemoryRow = {
   summary: unknown;
 };
 
+type NormalizedSummary = {
+  summary: string[];
+  characters: string[];
+  setting: string[];
+  relationships: string[];
+  reflections: string[];
+  extras: { title: string; items: string[] }[];
+};
+
 type CharacterIndexEntry = {
   name: string;
   chapters: Set<number>;
@@ -125,7 +134,7 @@ function toStringList(value: unknown): string[] {
     : [];
 }
 
-function normalizeSummary(summary: unknown) {
+function normalizeSummary(summary: unknown): NormalizedSummary {
   if (!summary || typeof summary !== "object") {
     return {
       summary: [],
@@ -155,7 +164,7 @@ function normalizeSummary(summary: unknown) {
           if (!title) return null;
           return { title, items: toStringList(obj.items) };
         })
-        .filter(Boolean)
+        .filter((entry): entry is { title: string; items: string[] } => Boolean(entry))
     : [];
   return {
     summary: toStringList(rec.summary),
@@ -596,11 +605,13 @@ export async function POST(
       if (first) ensured.push(first);
       if (last && last.chapter_number !== entry.first) ensured.push(last);
     });
-    if (rowsByChapter.has(maxChapter)) {
-      ensured.push(rowsByChapter.get(maxChapter));
+    const maxChapterRow = rowsByChapter.get(maxChapter);
+    if (maxChapterRow) {
+      ensured.push(maxChapterRow);
     }
-    if (rowsByChapter.has(maxChapter - 1)) {
-      ensured.push(rowsByChapter.get(maxChapter - 1));
+    const previousChapterRow = rowsByChapter.get(maxChapter - 1);
+    if (previousChapterRow) {
+      ensured.push(previousChapterRow);
     }
 
     const relevant = selectRelevantMemory(memoryRows, tokens);

@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 
 function extractCharacters(ai: unknown): string[] {
   if (!ai || typeof ai !== "object") return [];
-  const rec = ai as any;
+  const rec = ai as { characters?: unknown };
   const list = Array.isArray(rec.characters) ? (rec.characters as unknown[]) : [];
   return list
     .filter((x: unknown): x is string => typeof x === "string")

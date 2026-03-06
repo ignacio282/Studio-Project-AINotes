@@ -126,7 +126,7 @@ export default function NewBookPage() {
         >
           <BackArrowIcon className="h-6 w-6 text-[var(--color-text-main)]" />
         </button>
-        <h1 className="text-2xl font-semibold" style={{ fontFamily: "var(--font-h1)" }}>
+        <h1 className="type-h2">
           Add a book
         </h1>
       </header>
@@ -134,46 +134,46 @@ export default function NewBookPage() {
       <form onSubmit={onSubmit} className="flex flex-1 flex-col">
         <div className="space-y-5">
           <div>
-            <label className="block text-sm text-[var(--color-secondary)]">Title</label>
+            <label className="type-body block text-[var(--color-secondary)]">Title</label>
             <input
               type="text"
               name="title"
               placeholder="Red Rising"
               value={form.title}
               onChange={onChange}
-              className="mt-1 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/35%] bg-white/80 px-4 py-3 outline-none"
+              className="type-body mt-1 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/35%] bg-white/80 px-4 py-3 outline-none"
               required
             />
           </div>
           <div>
-            <label className="block text-sm text-[var(--color-secondary)]">Author</label>
+            <label className="type-body block text-[var(--color-secondary)]">Author</label>
             <input
               type="text"
               name="author"
               placeholder="Pierce Brown"
               value={form.author}
               onChange={onChange}
-              className="mt-1 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/35%] bg-white/80 px-4 py-3 outline-none"
+              className="type-body mt-1 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/35%] bg-white/80 px-4 py-3 outline-none"
             />
           </div>
           <div>
-            <label className="block text-sm text-[var(--color-secondary)]">Publisher</label>
+            <label className="type-body block text-[var(--color-secondary)]">Publisher</label>
             <input
               type="text"
               name="publisher"
               placeholder="Penguin Random House"
               value={form.publisher}
               onChange={onChange}
-              className="mt-1 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/35%] bg-white/80 px-4 py-3 outline-none"
+              className="type-body mt-1 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/35%] bg-white/80 px-4 py-3 outline-none"
             />
           </div>
           <div>
-            <label className="block text-sm text-[var(--color-secondary)]">Cover image</label>
+            <label className="type-body block text-[var(--color-secondary)]">Cover image</label>
             <input
               type="file"
               accept="image/*"
               onChange={onCoverFileChange}
-              className="mt-1 block w-full text-sm text-[var(--color-secondary)] file:mr-3 file:rounded-xl file:border file:border-[color:var(--rc-color-text-secondary)/35%] file:bg-white/80 file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--color-text-main)]"
+              className="type-body mt-1 block w-full text-[var(--color-secondary)] file:mr-3 file:rounded-xl file:border file:border-[color:var(--rc-color-text-secondary)/35%] file:bg-white/80 file:px-4 file:py-2 file:[font-size:var(--type-button-size)] file:[line-height:var(--type-button-line-height)] file:font-medium file:text-[var(--color-text-main)]"
             />
             {form.coverUrl ? (
               <div className="mt-3 h-32 w-24 overflow-hidden rounded-xl bg-white/60">
@@ -183,7 +183,7 @@ export default function NewBookPage() {
             ) : null}
           </div>
           <div>
-            <label className="block text-sm text-[var(--color-secondary)]"># of chapters</label>
+            <label className="type-body block text-[var(--color-secondary)]"># of chapters</label>
             <input
               type="number"
               inputMode="numeric"
@@ -193,20 +193,27 @@ export default function NewBookPage() {
               placeholder="21"
               value={form.chapters}
               onChange={onChange}
-              className="mt-1 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/35%] bg-white/80 px-4 py-3 outline-none"
+              className="type-body mt-1 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/35%] bg-white/80 px-4 py-3 outline-none"
             />
           </div>
         </div>
 
-        {error ? <div className="mt-4 text-sm text-red-700">{error}</div> : null}
+        {error ? <div className="type-body mt-4 text-red-700">{error}</div> : null}
 
         <div className="mt-auto pt-6">
           <button
             type="submit"
             disabled={submitting || !form.title.trim()}
-            className="w-full rounded-2xl bg-[var(--color-accent)] px-5 py-4 text-center text-[var(--color-text-on-accent)] disabled:opacity-60"
+            className="type-button w-full rounded-2xl bg-[var(--color-accent)] px-5 py-4 text-center text-[var(--color-text-on-accent)] disabled:opacity-60"
           >
             {submitting ? "Creating..." : "Start reading"}
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/home?skipOnboarding=1")}
+            className="type-button mt-3 w-full text-center text-[var(--color-text-accent)]"
+          >
+            Skip for now
           </button>
         </div>
       </form>

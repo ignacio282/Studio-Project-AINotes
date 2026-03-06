@@ -140,22 +140,15 @@ export async function DELETE(
         .eq("user_id", user.id);
       if (notesError) throw notesError;
 
-      const noteUpdates = (Array.isArray(notesData) ? notesData : [])
-        .map((row) => {
-          const nextSummary = removeCharacterFromSummary(row.ai_summary, targetName);
-          if (nextSummary === row.ai_summary) return null;
-          return supabase
-            .from("notes")
-            .update({ ai_summary: nextSummary })
-            .eq("id", row.id)
-            .eq("user_id", user.id);
-        })
-        .filter(Boolean);
-
-      if (noteUpdates.length > 0) {
-        const results = await Promise.all(noteUpdates);
-        const firstError = results.find((result) => result.error)?.error;
-        if (firstError) throw firstError;
+      for (const row of Array.isArray(notesData) ? notesData : []) {
+        const nextSummary = removeCharacterFromSummary(row.ai_summary, targetName);
+        if (nextSummary === row.ai_summary) continue;
+        const { error: noteUpdateError } = await supabase
+          .from("notes")
+          .update({ ai_summary: nextSummary })
+          .eq("id", row.id)
+          .eq("user_id", user.id);
+        if (noteUpdateError) throw noteUpdateError;
       }
 
       const { data: memoryData, error: memoryError } = await supabase
@@ -165,22 +158,15 @@ export async function DELETE(
         .eq("user_id", user.id);
       if (memoryError) throw memoryError;
 
-      const memoryUpdates = (Array.isArray(memoryData) ? memoryData : [])
-        .map((row) => {
-          const nextSummary = removeCharacterFromSummary(row.summary, targetName);
-          if (nextSummary === row.summary) return null;
-          return supabase
-            .from("book_chapter_memory")
-            .update({ summary: nextSummary })
-            .eq("id", row.id)
-            .eq("user_id", user.id);
-        })
-        .filter(Boolean);
-
-      if (memoryUpdates.length > 0) {
-        const results = await Promise.all(memoryUpdates);
-        const firstError = results.find((result) => result.error)?.error;
-        if (firstError) throw firstError;
+      for (const row of Array.isArray(memoryData) ? memoryData : []) {
+        const nextSummary = removeCharacterFromSummary(row.summary, targetName);
+        if (nextSummary === row.summary) continue;
+        const { error: memoryUpdateError } = await supabase
+          .from("book_chapter_memory")
+          .update({ summary: nextSummary })
+          .eq("id", row.id)
+          .eq("user_id", user.id);
+        if (memoryUpdateError) throw memoryUpdateError;
       }
     }
 

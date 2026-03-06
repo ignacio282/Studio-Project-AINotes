@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import BookChapterStartSheet from "@/components/BookChapterStartSheet";
 import BackArrowIcon from "@/components/BackArrowIcon";
 import BookHubTabs from "@/components/BookHubTabs";
+import QaLoadingPage from "@/components/qa/QaLoadingPage";
+import { resolveQaState } from "@/lib/qa/state";
 
 function CalendarIcon({ className }) {
   return (
@@ -136,8 +138,13 @@ export const dynamic = "force-dynamic";
 export default async function BookHubPage({ params, searchParams }) {
   const { bookId } = (await params) || {};
   const query = (await searchParams) || {};
+  const qaState = resolveQaState(query);
+  if (qaState === "loading") return <QaLoadingPage title="Loading book hub preview..." />;
+  if (qaState === "error") {
+    throw new Error("QA forced error state on Book Hub page.");
+  }
   const openStartNote = query?.startNote === "1";
-  const supabase = getServerSupabase();
+  const supabase = await getServerSupabase();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData?.user) {
     redirect("/login");
@@ -161,8 +168,8 @@ export default async function BookHubPage({ params, searchParams }) {
     .eq("book_id", bookId)
     .order("name", { ascending: true });
 
-  const notes = Array.isArray(notesData) ? notesData : [];
-  const characters = Array.isArray(charactersData) ? charactersData : [];
+  const notes = qaState === "empty" ? [] : Array.isArray(notesData) ? notesData : [];
+  const characters = qaState === "empty" ? [] : Array.isArray(charactersData) ? charactersData : [];
   const noteCount = notes.length;
   const firstNoteAt = noteCount > 0 ? notes[notes.length - 1].created_at : null;
   const { characters: noteCharacters, places } = extractEntities(notes);
@@ -208,22 +215,19 @@ export default async function BookHubPage({ params, searchParams }) {
                 className="h-full w-full object-cover"
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-xs text-[var(--color-secondary)]">
+              <div className="type-caption flex h-full w-full items-center justify-center text-[var(--color-secondary)]">
                 No cover
               </div>
             )}
           </div>
           <div className="flex-1">
-            <div
-              className="text-2xl font-semibold"
-              style={{ fontFamily: "var(--font-h1)" }}
-            >
+            <div className="type-h2">
               {book?.title || "Untitled"}
             </div>
-            <div className="mt-1 text-sm text-[var(--color-secondary)]">
+            <div className="type-body mt-1 text-[var(--color-secondary)]">
               {book?.author || ""}
             </div>
-            <div className="mt-3 space-y-1 text-sm text-[var(--color-secondary)]">
+            <div className="type-body mt-3 space-y-1 text-[var(--color-secondary)]">
               <div className="flex items-center gap-2">
                 <CalendarIcon className="h-4 w-4 text-[var(--color-text-accent)]" />
                 <span>Started on {startedOn ? formatDate(startedOn) : "-"}</span>
@@ -262,8 +266,7 @@ export default async function BookHubPage({ params, searchParams }) {
           />
           <Link
             href={`/books/${bookId}/assistant`}
-            className="block text-center text-sm font-medium text-[var(--color-text-accent)]"
-            style={{ fontFamily: "var(--font-title)" }}
+            className="type-button block text-center text-[var(--color-text-accent)]"
           >
             Open assistant
           </Link>

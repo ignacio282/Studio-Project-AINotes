@@ -1,0 +1,39 @@
+Scriba QA Seed Output
+
+Password for all QA users: ScribaQa123!
+
+Users:
+- qa.new@scriba.local (First-time user (0 books))
+- qa.empty@scriba.local (Empty states (books, no notes))
+- qa.active@scriba.local (Active reader (books + notes + characters))
+- qa.edge@scriba.local (Edge content (long text / odd metadata))
+
+Recommended test URLs:
+- http://localhost:3000/login
+- http://localhost:3000/home?qa=loading
+- http://localhost:3000/home?qa=empty
+- http://localhost:3000/home?qa=error
+- http://localhost:3000/library?qa=loading
+- http://localhost:3000/library?qa=empty
+
+Concrete URLs for qa.active:
+- http://localhost:3000/home
+- http://localhost:3000/library
+- http://localhost:3000/books/c97a0642-1ed5-40bd-a0c6-5ea8cb18a778
+- http://localhost:3000/books/c97a0642-1ed5-40bd-a0c6-5ea8cb18a778?startNote=1
+- http://localhost:3000/books/c97a0642-1ed5-40bd-a0c6-5ea8cb18a778/assistant
+- http://localhost:3000/books/c97a0642-1ed5-40bd-a0c6-5ea8cb18a778/assistant?qa=empty
+- http://localhost:3000/books/c97a0642-1ed5-40bd-a0c6-5ea8cb18a778/journal?chapter=4&bookTitle=The%20Ember%20Trials&chapterTitle=Chapter%204
+- http://localhost:3000/books/c97a0642-1ed5-40bd-a0c6-5ea8cb18a778/chapters/1/notes/90dad92e-268d-40fc-9d07-328b17bd82de
+- http://localhost:3000/books/c97a0642-1ed5-40bd-a0c6-5ea8cb18a778/characters/lena-ortiz
+
+Concrete URLs for qa.empty:
+- http://localhost:3000/library
+- http://localhost:3000/books/f686ddb9-b574-423c-a099-9c56603d949c
+
+Concrete URLs for qa.edge:
+- http://localhost:3000/books/92a5a7be-3552-4378-8230-4c630405131d
+
+Note:
+- qa.new has no books, so after login you should be redirected to /onboarding.
+- QA query flags work only outside production: ?qa=loading | ?qa=empty | ?qa=error

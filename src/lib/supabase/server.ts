@@ -22,7 +22,7 @@ export function getServiceSupabase(): SupabaseClient {
   return serviceClient;
 }
 
-export function getServerSupabase(): SupabaseClient {
+export async function getServerSupabase(): Promise<SupabaseClient> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) {
@@ -31,7 +31,7 @@ export function getServerSupabase(): SupabaseClient {
     );
   }
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   return createServerClient(url, anonKey, {
     cookies: {
       get(name) {

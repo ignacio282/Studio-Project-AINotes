@@ -124,20 +124,20 @@ function ChatMessage({ message, onAction, entities, bookId }) {
 function TypingIndicator() {
   return (
     <div className="flex justify-start">
-      <div className="assistant-message assistant-message--user text-[var(--color-secondary)]">
+      <div className="assistant-message assistant-message--user type-body text-[var(--color-secondary)]">
         Thinking...
       </div>
     </div>
   );
 }
 
-export default function BookAssistantChat({ bookId }) {
+export default function BookAssistantChat({ bookId, qaState = null }) {
   const [messages, setMessages] = useState(() => [
     {
       id: safeId(),
       role: "assistant",
       fullWidth: true,
-      content: `Hi! I am your AI book assistant. You can ask me about characters, places, or moments. I will answer using only your notes up through the latest chapter you have logged.\n\nYou can ask me questions like:\n- Who was X character again?\n- Is this character related to this other?\n- Can you give me a summary of everything I have noted until now`,
+      content: `Hi! I am your Scriba assistant. I answer using only the notes you have saved for this book, up through your latest logged chapter.\n\nTry questions like:\n- Who is [character] again?\n- How are [character A] and [character B] connected?\n- Can you summarize what I have captured so far?\n\nIf your notes are thin, I will say that clearly and suggest what to capture next.`,
     },
   ]);
   const [inputValue, setInputValue] = useState("");
@@ -188,14 +188,14 @@ export default function BookAssistantChat({ bookId }) {
         // ignore
       }
     };
-    if (bookId) {
+    if (bookId && qaState !== "empty") {
       loadEntities();
       loadScope();
     }
     return () => {
       active = false;
     };
-  }, [bookId]);
+  }, [bookId, qaState]);
 
   const createEmptySummary = () => ({
     summary: [],
@@ -259,6 +259,20 @@ export default function BookAssistantChat({ bookId }) {
     const userMessage = { id: safeId(), role: "user", content: trimmed };
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
+
+    if (qaState === "empty") {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: safeId(),
+          role: "assistant",
+          fullWidth: true,
+          content: "I do not have any chapter notes for this book yet. Add your first note and I can help right away.",
+        },
+      ]);
+      return;
+    }
+
     setIsLoading(true);
     setError("");
 
@@ -406,7 +420,9 @@ export default function BookAssistantChat({ bookId }) {
         <div className="assistant-scroll-inner">
           {scopeChapter ? (
             <div className="assistant-scope">Using notes up through chapter {scopeChapter}</div>
-          ) : null}
+          ) : (
+            <div className="assistant-scope">No chapter notes yet. Add a note and I can help you review it.</div>
+          )}
           {messages.map((message) => (
             <ChatMessage
               key={message.id}
@@ -421,14 +437,14 @@ export default function BookAssistantChat({ bookId }) {
       </div>
       <form onSubmit={handleSubmit} className="assistant-input-bar">
         <div className="assistant-input-inner">
-          {error ? <div className="text-xs text-red-500 mb-2">{error}</div> : null}
+          {error ? <div className="type-caption mb-2 text-red-500">{error}</div> : null}
           <div className="assistant-input-row">
             <textarea
               value={inputValue}
               onChange={(event) => setInputValue(event.target.value)}
               onKeyDown={handleKeyDown}
               rows={1}
-              placeholder="Ask about characters, places, moments"
+              placeholder="Ask about your notes, characters, places, or moments"
               className="assistant-textarea"
               disabled={isLoading}
             />
@@ -454,24 +470,24 @@ export default function BookAssistantChat({ bookId }) {
       {promptOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
           <div className="w-full max-w-lg rounded-2xl bg-[var(--color-page)] p-5 text-[var(--color-text-main)] shadow-xl">
-            <div className="text-sm text-[var(--color-secondary)]">Prompted note</div>
-            <div className="mt-1 text-xl font-semibold" style={{ fontFamily: "var(--font-h2)" }}>
+            <div className="type-body text-[var(--color-secondary)]">Prompted note</div>
+            <div className="type-h3 mt-1">
               {promptDraft?.prompt?.title || "Add a note"}
             </div>
             {promptDraft?.chapterNumber ? (
-              <div className="mt-1 text-xs text-[var(--color-secondary)]">
+              <div className="type-caption mt-1 text-[var(--color-secondary)]">
                 Chapter {promptDraft.chapterNumber}
               </div>
             ) : null}
 
             {promptDraft?.prompt?.context ? (
-              <div className="mt-3 rounded-xl bg-[var(--color-surface)] p-3 text-sm text-[var(--color-secondary)]">
+              <div className="type-body mt-3 rounded-xl bg-[var(--color-surface)] p-3 text-[var(--color-secondary)]">
                 {promptDraft.prompt.context}
               </div>
             ) : null}
 
             {Array.isArray(promptDraft?.prompt?.questions) && promptDraft.prompt.questions.length > 0 ? (
-              <div className="mt-4 space-y-2 text-sm">
+              <div className="type-body mt-4 space-y-2">
                 {promptDraft.prompt.questions.map((question, index) => (
                   <div key={`${question}-${index}`} className="flex items-start gap-2">
                     <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />
@@ -487,17 +503,17 @@ export default function BookAssistantChat({ bookId }) {
                 onChange={(event) => setPromptResponse(event.target.value)}
                 rows={4}
                 placeholder="Write a few lines..."
-                className="w-full resize-none bg-transparent text-sm leading-6 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)]"
+                className="type-body w-full resize-none bg-transparent text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)]"
               />
             </div>
 
-            {promptError ? <div className="mt-2 text-xs text-red-500">{promptError}</div> : null}
+            {promptError ? <div className="type-caption mt-2 text-red-500">{promptError}</div> : null}
 
             <div className="mt-4 flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setPromptOpen(false)}
-                className="rounded-full px-4 py-2 text-sm text-[var(--color-secondary)]"
+                className="type-button rounded-full px-4 py-2 text-[var(--color-secondary)]"
                 disabled={promptSaving}
               >
                 Cancel
@@ -505,7 +521,7 @@ export default function BookAssistantChat({ bookId }) {
               <button
                 type="button"
                 onClick={handlePromptSave}
-                className="rounded-full bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-[var(--color-text-on-accent)] transition hover:bg-[var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="type-button rounded-full bg-[var(--color-accent)] px-4 py-2 text-[var(--color-text-on-accent)] transition hover:bg-[var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={promptSaving}
               >
                 {promptSaving ? "Saving..." : "Save note"}
