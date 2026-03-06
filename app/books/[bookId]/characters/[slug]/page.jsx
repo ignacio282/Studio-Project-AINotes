@@ -5,16 +5,24 @@ import CollapsibleRow from "@/components/ui/CollapsibleRow";
 import NoteSnippetCard from "@/components/NoteSnippetCard";
 import BackArrowIcon from "@/components/BackArrowIcon";
 import CharacterProfileMenu from "@/components/CharacterProfileMenu";
+import QaLoadingPage from "@/components/qa/QaLoadingPage";
+import { resolveQaState } from "@/lib/qa/state";
 
 export const dynamic = "force-dynamic";
 
 function Placeholder({ label }) {
-  return <span className="text-[var(--color-text-disabled)]">{label}</span>;
+  return <span className="type-body text-[var(--color-text-disabled)]">{label}</span>;
 }
 
-export default async function CharacterProfilePage({ params }) {
+export default async function CharacterProfilePage({ params, searchParams }) {
   const { bookId, slug } = await params;
-  const supabase = getServerSupabase();
+  const query = (await searchParams) || {};
+  const qaState = resolveQaState(query);
+  if (qaState === "loading") return <QaLoadingPage title="Loading character profile preview..." />;
+  if (qaState === "error") {
+    throw new Error("QA forced error state on Character page.");
+  }
+  const supabase = await getServerSupabase();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData?.user) {
     redirect("/login");
@@ -27,7 +35,7 @@ export default async function CharacterProfilePage({ params }) {
     .eq("slug", slug)
     .single();
 
-  const character = error ? null : data;
+  const character = qaState === "empty" ? null : error ? null : data;
 
   // Only show the populating badge until a short bio exists.
   const isPopulating = !(
@@ -75,10 +83,10 @@ export default async function CharacterProfilePage({ params }) {
       <header className="space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-3xl font-semibold tracking-tight" style={{ fontFamily: "var(--font-h1)" }}>
+            <h1 className="type-h2">
               {character?.name || "Unknown"}
             </h1>
-            <div className="text-base text-[var(--color-secondary)]">{character?.role || "Protagonist"}</div>
+            <div className="type-body text-[var(--color-secondary)]">{character?.role || "Protagonist"}</div>
           </div>
           {character ? (
             <CharacterProfileMenu
@@ -100,7 +108,7 @@ export default async function CharacterProfilePage({ params }) {
       </header>
 
       {/* Bio */}
-      <section className="text-base leading-7 text-[var(--color-text-main)]">
+      <section className="type-body text-[var(--color-text-main)]">
         {character?.short_bio ? (
           character.short_bio
         ) : character?.full_bio ? (
@@ -161,8 +169,7 @@ export default async function CharacterProfilePage({ params }) {
       {/* Journey timeline */}
       <section className="rounded-2xl bg-[var(--color-surface)] p-4">
         <div
-          className="text-xl font-semibold text-[var(--color-text-main)]"
-          style={{ fontFamily: "var(--font-title)" }}
+          className="type-h3 text-[var(--color-text-main)]"
         >
           Journey
         </div>
@@ -181,7 +188,7 @@ export default async function CharacterProfilePage({ params }) {
                   aria-hidden
                 />
                 <div className="caption">Chapter {t.chapterNumber}</div>
-                <div className="mt-1 text-[var(--color-text-main)] italic line-clamp-1">
+                <div className="type-body mt-1 text-[var(--color-text-main)] italic line-clamp-1">
                   “{t?.snippet?.replace(/^["“”]+|["“”]+$/g, "").trim()}”
                 </div>
               </div>

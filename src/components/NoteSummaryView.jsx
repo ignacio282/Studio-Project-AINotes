@@ -43,7 +43,7 @@ function SummaryCategory({
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center gap-2 text-base font-semibold text-[var(--color-text-main)]">
+      <div className="type-title flex items-center gap-2 text-[var(--color-text-main)]">
         {icon ? <span aria-hidden="true">{icon}</span> : null}
         <span>{title}</span>
       </div>
@@ -57,7 +57,7 @@ function SummaryCategory({
                   key={key}
                   className="flex items-start gap-3 rounded-md bg-[var(--color-accent-subtle)]/40 px-3 py-2"
                 >
-                  <p className="flex-1 text-sm leading-6 text-[var(--color-text-main)]">
+                  <p className="type-body flex-1 text-[var(--color-text-main)]">
                     {item}
                   </p>
                 </div>
@@ -74,8 +74,8 @@ function SummaryCategory({
                 <span
                   className={
                     isCharacters
-                      ? "flex-1 text-sm leading-6 text-[var(--color-text-accent)] font-medium"
-                      : "flex-1 text-sm leading-6 text-[var(--color-text-main)]"
+                      ? "type-body flex-1 text-[var(--color-text-accent)]"
+                      : "type-body flex-1 text-[var(--color-text-main)]"
                   }
                 >
                   {item}
@@ -85,7 +85,7 @@ function SummaryCategory({
           })}
         </div>
       ) : (
-        <div className="mt-4 text-sm text-[var(--color-text-disabled)]">
+        <div className="type-body mt-4 text-[var(--color-text-disabled)]">
           {resolvedPlaceholder}
         </div>
       )}
@@ -148,7 +148,7 @@ function SummarySectionStack({ summary, showPlaceholders = false }) {
 export default function NoteSummaryView({ summary }) {
   if (!summary || typeof summary !== "object") {
     return (
-      <div className="mt-2 text-sm text-[var(--color-text-disabled)]">
+      <div className="type-body mt-2 text-[var(--color-text-disabled)]">
         No AI note captured yet.
       </div>
     );
@@ -156,7 +156,7 @@ export default function NoteSummaryView({ summary }) {
 
   return (
     <section className="rounded-2xl bg-[var(--color-surface)] p-4">
-      <div className="text-base font-semibold">AI Note</div>
+      <div className="type-title">AI Note</div>
       <div className="mt-4">
         <SummarySectionStack summary={summary} />
       </div>

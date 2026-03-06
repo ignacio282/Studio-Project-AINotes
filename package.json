@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "qa:seed": "node scripts/qa-seed-users.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",

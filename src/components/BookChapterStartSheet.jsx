@@ -61,8 +61,7 @@ export default function BookChapterStartSheet({
         type="button"
         onClick={() => setOpen(true)}
         disabled={!hasValidBook}
-        className="block w-full rounded-2xl bg-[var(--color-accent)] px-5 py-4 text-center text-sm font-medium text-[var(--color-text-on-accent)] disabled:cursor-not-allowed disabled:opacity-60"
-        style={{ fontFamily: "var(--font-title)" }}
+        className="type-button block w-full rounded-2xl bg-[var(--color-accent)] px-5 py-4 text-center text-[var(--color-text-on-accent)] disabled:cursor-not-allowed disabled:opacity-60"
       >
         Write a note
       </button>
@@ -97,12 +96,12 @@ export default function BookChapterStartSheet({
               <div className="mx-auto h-1 w-12 rounded-full bg-[var(--color-secondary)]/50" />
 
               <section className="mt-4 rounded-2xl bg-[var(--color-surface)] p-4">
-                <div className="text-sm font-medium text-[var(--color-text-main)]">
+                <div className="type-button text-[var(--color-text-main)]">
                   What chapter are you going to read?
                 </div>
                 <div className="mt-3 max-h-60 overflow-y-auto rounded-xl bg-[var(--color-page)]">
                   {chapters.length === 0 ? (
-                    <div className="px-4 py-3 text-sm text-[var(--color-secondary)]">
+                    <div className="type-body px-4 py-3 text-[var(--color-secondary)]">
                       Add the number of chapters for this book to start
                       tracking notes by chapter.
                     </div>
@@ -114,7 +113,7 @@ export default function BookChapterStartSheet({
                           key={chapter}
                           type="button"
                           onClick={() => setSelectedChapter(chapter)}
-                          className={`flex w-full items-center justify-between border-b border-[var(--color-surface)] px-4 py-3 text-left text-sm ${
+                          className={`type-body flex w-full items-center justify-between border-b border-[var(--color-surface)] px-4 py-3 text-left ${
                             isActive
                               ? "bg-[color:var(--rc-color-accent-subtle)/70%] text-[var(--color-text-main)]"
                               : "bg-[var(--color-page)] text-[var(--color-text-main)]"
@@ -140,12 +139,11 @@ export default function BookChapterStartSheet({
                 type="button"
                 onClick={handleStart}
                 disabled={startDisabled}
-                className={`mt-4 w-full rounded-2xl px-5 py-3 text-sm font-medium ${
+                className={`type-button mt-4 w-full rounded-2xl px-5 py-3 ${
                   startDisabled
                     ? "cursor-not-allowed bg-[color:var(--rc-color-accent-subtle)/35%] text-[var(--color-secondary)]"
                     : "bg-[var(--color-accent)] text-[var(--color-text-on-accent)]"
                 }`}
-                style={{ fontFamily: "var(--font-title)" }}
               >
                 Start
               </button>

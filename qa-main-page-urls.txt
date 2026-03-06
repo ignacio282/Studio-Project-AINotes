@@ -1,0 +1,25 @@
+Scriba QA URL Checklist
+Base URL used below: http://localhost:3000
+(If you run on a different host/port, replace the base URL.)
+
+Public / Entry
+http://localhost:3000/
+http://localhost:3000/login
+http://localhost:3000/onboarding
+
+Authenticated Main Pages
+http://localhost:3000/home
+http://localhost:3000/library
+http://localhost:3000/library/switch
+http://localhost:3000/books/new
+
+Dynamic Main Pages (replace placeholders)
+http://localhost:3000/books/{bookId}
+http://localhost:3000/books/{bookId}/assistant
+http://localhost:3000/books/{bookId}/journal
+http://localhost:3000/books/{bookId}/journal?chapter={chapterNumber}&bookTitle={bookTitle}&chapterTitle=Chapter%20{chapterNumber}
+http://localhost:3000/books/{bookId}/chapters/{chapterNumber}/notes/{noteId}
+http://localhost:3000/books/{bookId}/characters/{slug}
+
+Useful QA Deep Link
+http://localhost:3000/books/{bookId}?startNote=1

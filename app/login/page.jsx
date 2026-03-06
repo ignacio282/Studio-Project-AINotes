@@ -46,42 +46,41 @@ export default function LoginPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center bg-[var(--color-page)] px-6 py-10 text-[var(--color-text-main)]">
       <div className="rounded-2xl bg-[var(--color-surface)] p-6">
-        <div className="text-xl font-semibold" style={{ fontFamily: "var(--font-h2)" }}>
+        <div className="type-h2">
           Tester Login
         </div>
-        <div className="mt-2 text-sm text-[var(--color-secondary)]">
+        <div className="type-body mt-2 text-[var(--color-secondary)]">
           Use the email and password provided by the team.
         </div>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <label className="block text-sm text-[var(--color-secondary)]">
+          <label className="type-body block text-[var(--color-secondary)]">
             Email
             <input
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/25%] bg-white/80 px-4 py-2 text-sm text-[var(--color-text-main)] outline-none focus:border-[var(--color-text-accent)]"
+              className="type-body mt-2 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/25%] bg-white/80 px-4 py-2 text-[var(--color-text-main)] outline-none focus:border-[var(--color-text-accent)]"
               required
             />
           </label>
-          <label className="block text-sm text-[var(--color-secondary)]">
+          <label className="type-body block text-[var(--color-secondary)]">
             Password
             <input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/25%] bg-white/80 px-4 py-2 text-sm text-[var(--color-text-main)] outline-none focus:border-[var(--color-text-accent)]"
+              className="type-body mt-2 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/25%] bg-white/80 px-4 py-2 text-[var(--color-text-main)] outline-none focus:border-[var(--color-text-accent)]"
               required
             />
           </label>
 
-          {error ? <div className="text-sm text-red-500">{error}</div> : null}
+          {error ? <div className="type-body text-red-500">{error}</div> : null}
 
           <button
             type="submit"
-            className="w-full rounded-2xl bg-[var(--color-accent)] px-4 py-3 text-sm font-medium text-[var(--color-text-on-accent)]"
+            className="type-button w-full rounded-2xl bg-[var(--color-accent)] px-4 py-3 text-[var(--color-text-on-accent)]"
             disabled={loading}
-            style={{ fontFamily: "var(--font-title)" }}
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>

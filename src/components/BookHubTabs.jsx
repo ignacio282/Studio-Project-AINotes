@@ -27,28 +27,6 @@ function ChevronRightIcon({ className }) {
   );
 }
 
-function CaretDownIcon({ className }) {
-  return (
-    <svg viewBox="0 0 20 20" className={className} aria-hidden>
-      <path
-        fill="currentColor"
-        d="M5.47 7.97a.75.75 0 0 1 1.06 0L10 11.44l3.47-3.47a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 0 1 0-1.06Z"
-      />
-    </svg>
-  );
-}
-
-function CheckIcon({ className }) {
-  return (
-    <svg viewBox="0 0 20 20" className={className} aria-hidden>
-      <path
-        fill="currentColor"
-        d="M16.7 5.3a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L3.3 8.52a.75.75 0 1 1 1.06-1.06l4.03 4.03 6.72-6.72a.75.75 0 0 1 1.06 0Z"
-      />
-    </svg>
-  );
-}
-
 function CloseIcon({ className }) {
   return (
     <svg viewBox="0 0 20 20" className={className} aria-hidden>
@@ -74,7 +52,6 @@ export default function BookHubTabs({
   const [notesState, setNotesState] = useState(Array.isArray(notes) ? notes : []);
   const [activeNoteActionId, setActiveNoteActionId] = useState("");
   const [isDeletingNote, setIsDeletingNote] = useState(false);
-  const chipBase = "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap";
   const effectiveNoteCount = notesState.length;
   const filtersAreDisabled = effectiveNoteCount === 0;
 
@@ -132,10 +109,10 @@ export default function BookHubTabs({
               role="tab"
               aria-selected={isActive}
               onClick={() => setActiveTab(tab.id)}
-              className={`relative w-full pb-3 text-center text-sm transition ${
+              className={`type-button relative w-full pb-3 text-center transition ${
                 isActive
-                  ? "text-[var(--color-text-main)] font-semibold"
-                  : "text-[var(--color-text-disabled)] font-medium"
+                  ? "text-[var(--color-text-main)]"
+                  : "text-[var(--color-text-disabled)]"
               }`}
             >
               {tab.label}
@@ -157,12 +134,11 @@ export default function BookHubTabs({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div
-                    className="text-base font-medium text-[var(--color-text-main)]"
-                    style={{ fontFamily: "var(--font-title)" }}
+                    className="type-title text-[var(--color-text-main)]"
                   >
                     Ask your assistant
                   </div>
-                  <div className="mt-2 text-sm text-[var(--color-secondary)]">
+                  <div className="type-body mt-2 text-[var(--color-secondary)]">
                     Can&apos;t remember something about this book? Ask your AI assistant. It will
                     go over your notes to help you remember.
                   </div>
@@ -182,61 +158,14 @@ export default function BookHubTabs({
             {formatCount(effectiveNoteCount, "note", "notes")}
           </div>
 
-          <div className="mb-4 flex flex-nowrap gap-2 overflow-x-auto no-scrollbar">
-            <span
-              className={`${chipBase} flex-shrink-0 ${
-                filtersAreDisabled || filtersDisabled
-                  ? "bg-[color:var(--color-text-disabled)/20%] text-[var(--color-text-disabled)]"
-                  : "bg-[var(--color-accent-subtle)] text-[var(--color-text-main)]"
-              }`}
-            >
-              <CheckIcon className="h-4 w-4" />
-              All
-            </span>
-            <span
-              className={`${chipBase} flex-shrink-0 border ${
-                filtersAreDisabled || filtersDisabled
-                  ? "border-[var(--color-text-disabled)] text-[var(--color-text-disabled)]"
-                  : "border-[var(--color-secondary)] text-[var(--color-text-main)]"
-              }`}
-            >
-              <span>Chapter</span>
-              <CaretDownIcon className="h-3 w-3" />
-            </span>
-            <span
-              className={`${chipBase} flex-shrink-0 border ${
-                filtersAreDisabled || filtersDisabled
-                  ? "border-[var(--color-text-disabled)] text-[var(--color-text-disabled)]"
-                  : "border-[var(--color-secondary)] text-[var(--color-text-main)]"
-              }`}
-            >
-              <span>Date</span>
-              <CaretDownIcon className="h-3 w-3" />
-            </span>
-            <span
-              className={`${chipBase} flex-shrink-0 border ${
-                filtersAreDisabled || filtersDisabled
-                  ? "border-[var(--color-text-disabled)] text-[var(--color-text-disabled)]"
-                  : "border-[var(--color-secondary)] text-[var(--color-text-main)]"
-              }`}
-            >
-              <span>Character</span>
-              <CaretDownIcon className="h-3 w-3" />
-            </span>
-            <span
-              className={`${chipBase} flex-shrink-0 border ${
-                filtersAreDisabled || filtersDisabled
-                  ? "border-[var(--color-text-disabled)] text-[var(--color-text-disabled)]"
-                  : "border-[var(--color-secondary)] text-[var(--color-text-main)]"
-              }`}
-            >
-              <span>Place</span>
-              <CaretDownIcon className="h-3 w-3" />
-            </span>
-          </div>
+          {!filtersAreDisabled && !filtersDisabled ? (
+            <div className="type-caption mb-4 rounded-xl bg-[var(--color-surface)] px-3 py-2 text-[var(--color-secondary)]">
+              Filters are coming soon. You can browse notes by date for now.
+            </div>
+          ) : null}
 
           {notesState.length === 0 ? (
-            <div className="rounded-2xl bg-[var(--color-surface)] p-6 text-[var(--color-secondary)]">
+            <div className="type-body rounded-2xl bg-[var(--color-surface)] p-6 text-[var(--color-secondary)]">
               Start taking notes to see them here.
             </div>
           ) : (
@@ -247,17 +176,11 @@ export default function BookHubTabs({
                   <div key={n.id} className="rounded-2xl bg-[var(--color-surface)] p-4">
                     <div className="flex items-start gap-3">
                       <Link href={href} className="min-w-0 flex-1">
-                        <div
-                          className="text-base font-medium"
-                          style={{ fontFamily: "var(--font-title)" }}
-                        >
+                        <div className="type-title">
                           {new Date(n.created_at).toLocaleString()}
                         </div>
                         <div className="caption">Chapter {n.chapter_number}</div>
-                        <div
-                          className="mt-2 text-sm font-normal text-[var(--color-text-main)]"
-                          style={{ fontFamily: "var(--font-body)" }}
-                        >
+                        <div className="type-body mt-2 text-[var(--color-text-main)]">
                           {n.preview ? (
                             n.preview
                           ) : (
@@ -284,7 +207,7 @@ export default function BookHubTabs({
                   <button
                     type="button"
                     onClick={() => setShowAllNotes(true)}
-                    className="text-sm font-medium text-[var(--color-secondary)] underline decoration-[var(--color-text-disabled)]"
+                    className="type-button text-[var(--color-secondary)] underline decoration-[var(--color-text-disabled)]"
                   >
                     Show more
                   </button>
@@ -318,13 +241,13 @@ export default function BookHubTabs({
             {formatCount(characters.length, "character", "characters")}
           </div>
           {characters.length === 0 ? (
-            <div className="rounded-2xl bg-[var(--color-surface)] p-6 text-[var(--color-secondary)]">
+            <div className="type-body rounded-2xl bg-[var(--color-surface)] p-6 text-[var(--color-secondary)]">
               Characters will appear once they are mentioned in your notes.
             </div>
           ) : (
             <div className="overflow-hidden rounded-2xl bg-[var(--color-surface)]">
               {characters.map((character, index) => {
-                const rowClass = `flex items-center justify-between px-4 py-4 text-base ${
+                const rowClass = `type-title flex items-center justify-between px-4 py-4 ${
                   index < characters.length - 1
                     ? "border-b border-[var(--color-text-disabled)]"
                     : ""
@@ -358,7 +281,7 @@ export default function BookHubTabs({
             {formatCount(places.length, "place", "places")}
           </div>
           {places.length === 0 ? (
-            <div className="rounded-2xl bg-[var(--color-surface)] p-6 text-[var(--color-secondary)]">
+            <div className="type-body rounded-2xl bg-[var(--color-surface)] p-6 text-[var(--color-secondary)]">
               Places will appear once they are mentioned in your notes.
             </div>
           ) : (
@@ -366,7 +289,7 @@ export default function BookHubTabs({
               {places.map((place, index) => (
                 <div
                   key={place}
-                  className={`flex items-center justify-between px-4 py-4 text-base ${
+                  className={`type-title flex items-center justify-between px-4 py-4 ${
                     index < places.length - 1
                       ? "border-b border-[var(--color-text-disabled)]"
                       : ""

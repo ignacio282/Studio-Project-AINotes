@@ -182,6 +182,17 @@ Keep these contracts stable unless all callers are updated together.
   - graceful fallback messages,
   - source chapter visibility in assistant mode.
 
+## Typography Conventions
+- Use app typography tokens from `app/globals.css` (`type-h1`, `type-h2`, `type-h3`, `type-title`, `type-body`, `type-button`, `type-caption`, `type-small`).
+- Buttons and button labels must use `type-button`.
+- Paragraph/body copy must use `type-body`.
+- Helper/tip/support text should use `type-caption` unless a screen-specific requirement says otherwise.
+- Headings are hierarchical by screen structure:
+  - `H1` for primary page title/hero text,
+  - `H2` for major page-section titles,
+  - `H3` for subsection titles and card-section titles.
+- When implementing from design, do not create ad-hoc font sizes; map each text element to one token from this scale.
+
 ## Security and Secrets
 - Never commit secrets (API keys, service-role keys, tokens).
 - Never log raw secrets or full credentialed payloads.

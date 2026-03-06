@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 function Placeholder({ label }) {
-  return <span className="text-[var(--color-text-disabled)]">{label}</span>;
+  return <span className="type-body text-[var(--color-text-disabled)]">{label}</span>;
 }
 
 function formatDateTime(iso) {
@@ -43,7 +43,7 @@ function NotePreview({ aiSummary, content }) {
   const preview = buildNotePreview(aiSummary, content);
   if (!preview) return <Placeholder label="No content yet" />;
   return (
-    <p className="text-sm leading-6 text-[var(--color-text-main)]">{preview}</p>
+    <p className="type-body text-[var(--color-text-main)]">{preview}</p>
   );
 }
 
@@ -57,10 +57,10 @@ export default function NoteSnippetCard({ bookId, chapter, note, showLink = true
     <div className="rounded-xl bg-[var(--color-page)] p-4">
       {note ? (
         <>
-          <div className="text-lg font-medium text-[var(--color-text-main)]">
+          <div className="type-title text-[var(--color-text-main)]">
             {formatDateTime(note.created_at)}
           </div>
-          <div className="mt-1 text-sm text-[var(--color-secondary)]">Note captured</div>
+          <div className="type-body mt-1 text-[var(--color-secondary)]">Note captured</div>
           <div className="mt-3">
             <NotePreview aiSummary={note.ai_summary} content={note.content} />
           </div>
@@ -68,7 +68,7 @@ export default function NoteSnippetCard({ bookId, chapter, note, showLink = true
             <div className="mt-3">
               <Link
                 href={href}
-                className="inline-flex items-center gap-2 text-[var(--color-text-accent)] underline"
+                className="type-button inline-flex items-center gap-2 text-[var(--color-text-accent)] underline"
               >
                 View full note
               </Link>
