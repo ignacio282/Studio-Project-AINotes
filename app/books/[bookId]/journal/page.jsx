@@ -1,10 +1,10 @@
 "use client";
 
-import { use, useEffect } from "react";
+import { Suspense, use, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Journaling from "../../../page.jsx";
 
-export default function BookJournalingPage({ params }) {
+function BookJournalingPageContent({ params }) {
   const { bookId } = use(params) ?? {};
   const searchParams = useSearchParams();
 
@@ -38,5 +38,13 @@ export default function BookJournalingPage({ params }) {
       initialChapterNumber={normalizedChapterNumber}
       initialChapterTitle={chapterTitleParam}
     />
+  );
+}
+
+export default function BookJournalingPage({ params }) {
+  return (
+    <Suspense fallback={null}>
+      <BookJournalingPageContent params={params} />
+    </Suspense>
   );
 }

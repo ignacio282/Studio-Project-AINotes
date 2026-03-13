@@ -37,11 +37,13 @@ type GoogleBooksItem = {
       thumbnail?: string;
       smallThumbnail?: string;
     };
-    industryIdentifiers?: Array<{
-      type?: string;
-      identifier?: string;
-    }>;
+    industryIdentifiers?: GoogleIndustryIdentifier[];
   };
+};
+
+type GoogleIndustryIdentifier = {
+  type?: string;
+  identifier?: string;
 };
 
 type SearchResult = {
@@ -99,7 +101,7 @@ function normalizeGoogleCover(url: unknown): string | null {
   return trimmed;
 }
 
-function pickGoogleIsbn(identifiers: GoogleBooksItem["volumeInfo"]["industryIdentifiers"]): string | null {
+function pickGoogleIsbn(identifiers: GoogleIndustryIdentifier[] | undefined): string | null {
   if (!Array.isArray(identifiers)) return null;
   const isbnPreferred = identifiers.find(
     (entry) =>
