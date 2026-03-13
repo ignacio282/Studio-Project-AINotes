@@ -19,20 +19,20 @@ Recommended test URLs:
 Concrete URLs for qa.active:
 - http://localhost:3000/home
 - http://localhost:3000/library
-- http://localhost:3000/books/c97a0642-1ed5-40bd-a0c6-5ea8cb18a778
-- http://localhost:3000/books/c97a0642-1ed5-40bd-a0c6-5ea8cb18a778?startNote=1
-- http://localhost:3000/books/c97a0642-1ed5-40bd-a0c6-5ea8cb18a778/assistant
-- http://localhost:3000/books/c97a0642-1ed5-40bd-a0c6-5ea8cb18a778/assistant?qa=empty
-- http://localhost:3000/books/c97a0642-1ed5-40bd-a0c6-5ea8cb18a778/journal?chapter=4&bookTitle=The%20Ember%20Trials&chapterTitle=Chapter%204
-- http://localhost:3000/books/c97a0642-1ed5-40bd-a0c6-5ea8cb18a778/chapters/1/notes/90dad92e-268d-40fc-9d07-328b17bd82de
-- http://localhost:3000/books/c97a0642-1ed5-40bd-a0c6-5ea8cb18a778/characters/lena-ortiz
+- http://localhost:3000/books/8697c62c-e2f1-42e1-8da9-f7358131a625
+- http://localhost:3000/books/8697c62c-e2f1-42e1-8da9-f7358131a625?startNote=1
+- http://localhost:3000/books/8697c62c-e2f1-42e1-8da9-f7358131a625/assistant
+- http://localhost:3000/books/8697c62c-e2f1-42e1-8da9-f7358131a625/assistant?qa=empty
+- http://localhost:3000/books/8697c62c-e2f1-42e1-8da9-f7358131a625/journal?chapter=4&bookTitle=The%20Ember%20Trials&chapterTitle=Chapter%204
+- http://localhost:3000/books/8697c62c-e2f1-42e1-8da9-f7358131a625/chapters/1/notes/590c961d-3220-4096-93d3-30a02e7b965f
+- http://localhost:3000/books/8697c62c-e2f1-42e1-8da9-f7358131a625/characters/lena-ortiz
 
 Concrete URLs for qa.empty:
 - http://localhost:3000/library
-- http://localhost:3000/books/f686ddb9-b574-423c-a099-9c56603d949c
+- http://localhost:3000/books/f13dca60-6f91-48d8-9eb0-cea65d2b0e91
 
 Concrete URLs for qa.edge:
-- http://localhost:3000/books/92a5a7be-3552-4378-8230-4c630405131d
+- http://localhost:3000/books/45c026fa-8f7a-4ad3-ba15-219ca57ee383
 
 Note:
 - qa.new has no books, so after login you should be redirected to /onboarding.
