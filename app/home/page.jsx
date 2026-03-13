@@ -119,6 +119,7 @@ export default async function HomePage({ searchParams }) {
   const effectiveBooks = qaState === "empty" ? [] : books;
   const effectiveCurrentBook = qaState === "empty" ? null : currentBook;
   const hasCurrentBook = Boolean(effectiveCurrentBook);
+  const canSwitchBooks = effectiveBooks.length > 1;
   const switchHref = "/library/switch";
 
   const title = effectiveCurrentBook?.title?.trim() || "No current book";
@@ -153,7 +154,7 @@ export default async function HomePage({ searchParams }) {
 
   return (
     <div className="min-h-screen bg-[#FAF9F5] text-[#2A2A2A]">
-      <main className="mx-auto w-full max-w-[390px]">
+      <main className="mx-auto w-full sm:max-w-screen-sm">
         <section className={`relative ${hasCurrentBook ? "h-[282px]" : "h-[284px]"}`}>
           <div className="h-[148px] bg-[#5A8A84] px-4 py-4">
             <div className="flex items-start justify-between gap-3">
@@ -216,13 +217,17 @@ export default async function HomePage({ searchParams }) {
                   label={primaryActionLabel}
                   ariaLabel={primaryActionLabel}
                 />
-                <div className="h-6 w-px bg-[#D0CEC7]" />
-                <ActionLink
-                  href={switchHref}
-                  icon={<SwapVertIcon className="h-6 w-6" />}
-                  label="Switch book"
-                  ariaLabel="Switch book"
-                />
+                {canSwitchBooks ? (
+                  <>
+                    <div className="h-6 w-px bg-[#D0CEC7]" />
+                    <ActionLink
+                      href={switchHref}
+                      icon={<SwapVertIcon className="h-6 w-6" />}
+                      label="Switch book"
+                      ariaLabel="Switch book"
+                    />
+                  </>
+                ) : null}
               </div>
             </div>
           ) : (
