@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getBrowserSupabase } from "@/lib/supabase/client";
 import BackArrowIcon from "@/components/BackArrowIcon";
@@ -67,7 +67,7 @@ function FormField({ label, children }) {
   );
 }
 
-export default function NewBookPage() {
+function NewBookPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const coverInputRef = useRef(null);
@@ -516,5 +516,13 @@ export default function NewBookPage() {
         </form>
       ) : null}
     </div>
+  );
+}
+
+export default function NewBookPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[var(--color-page)]" />}>
+      <NewBookPageContent />
+    </Suspense>
   );
 }

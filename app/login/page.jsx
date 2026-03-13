@@ -4,6 +4,18 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getBrowserSupabase } from "@/lib/supabase/client";
 
+function getSafeNextPath(value) {
+  if (typeof value !== "string") return "/home";
+  if (!value.startsWith("/") || value.startsWith("//")) return "/home";
+  return value;
+}
+
+function readNextPath() {
+  if (typeof window === "undefined") return "/home";
+  const params = new URLSearchParams(window.location.search);
+  return getSafeNextPath(params.get("next"));
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const supabase = getBrowserSupabase();
@@ -11,14 +23,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [nextPath, setNextPath] = useState("/home");
 
   useEffect(() => {
     let active = true;
+    setNextPath(readNextPath());
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
       if (!active) return;
       if (data?.session) {
-        router.replace("/home");
+        router.replace(readNextPath());
       }
     };
     checkSession();
@@ -40,17 +54,17 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    router.replace("/home");
+    router.replace(nextPath);
   };
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center bg-[var(--color-page)] px-6 py-10 text-[var(--color-text-main)]">
       <div className="rounded-2xl bg-[var(--color-surface)] p-6">
         <div className="type-h2">
-          Tester Login
+          Sign in
         </div>
         <div className="type-body mt-2 text-[var(--color-secondary)]">
-          Use the email and password provided by the team.
+          Use your Scriba email and password.
         </div>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">

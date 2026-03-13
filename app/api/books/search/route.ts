@@ -13,6 +13,9 @@ type OpenLibraryDoc = {
   cover_i?: number;
   first_publish_year?: number;
   isbn?: string[];
+  edition_count?: number;
+  readinglog_count?: number;
+  ratings_count?: number;
 };
 
 type GoogleBooksItem = {
@@ -25,16 +28,22 @@ type GoogleBooksItem = {
     publishedDate?: string;
     pageCount?: number;
     language?: string;
+    printType?: string;
+    mainCategory?: string;
     categories?: string[];
+    averageRating?: number;
+    ratingsCount?: number;
     imageLinks?: {
       thumbnail?: string;
       smallThumbnail?: string;
     };
-    industryIdentifiers?: Array<{
-      type?: string;
-      identifier?: string;
-    }>;
+    industryIdentifiers?: GoogleIndustryIdentifier[];
   };
+};
+
+type GoogleIndustryIdentifier = {
+  type?: string;
+  identifier?: string;
 };
 
 type SearchResult = {
@@ -92,7 +101,7 @@ function normalizeGoogleCover(url: unknown): string | null {
   return trimmed;
 }
 
-function pickGoogleIsbn(identifiers: GoogleBooksItem["volumeInfo"]["industryIdentifiers"]): string | null {
+function pickGoogleIsbn(identifiers: GoogleIndustryIdentifier[] | undefined): string | null {
   if (!Array.isArray(identifiers)) return null;
   const isbnPreferred = identifiers.find(
     (entry) =>
@@ -170,11 +179,42 @@ function normalizeGoogleItem(item: GoogleBooksItem): SearchResult | null {
   };
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function popularityBoost(value: number | null | undefined, multiplier: number, max: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return 0;
+  return clamp(Math.log10(value + 1) * multiplier, 0, max);
+}
+
+function escapeGoogleQueryTerm(value: string): string {
+  return value.replace(/["\\]/g, "").trim();
+}
+
+function buildGoogleQueries(query: string): string[] {
+  const escaped = escapeGoogleQueryTerm(query);
+  if (!escaped) return [query];
+
+  const exactTitleQuery = `intitle:"${escaped}"`;
+  if (normalizeForCompare(escaped).includes(" ")) {
+    return [exactTitleQuery, `"${escaped}"`, escaped];
+  }
+  return [exactTitleQuery, escaped];
+}
+
 function scoreGoogleItem(item: GoogleBooksItem, result: SearchResult, query: string): number {
   const info = item.volumeInfo;
   const title = (typeof info?.title === "string" ? info.title : "").trim();
   const subtitle = (typeof info?.subtitle === "string" ? info.subtitle : "").trim();
   const pageCount = typeof info?.pageCount === "number" && Number.isFinite(info.pageCount) ? info.pageCount : null;
+  const ratingsCount =
+    typeof info?.ratingsCount === "number" && Number.isFinite(info.ratingsCount) ? info.ratingsCount : null;
+  const averageRating =
+    typeof info?.averageRating === "number" && Number.isFinite(info.averageRating) ? info.averageRating : null;
+  const language = typeof info?.language === "string" ? info.language.trim().toLowerCase() : "";
+  const printType = typeof info?.printType === "string" ? info.printType.trim().toUpperCase() : "";
+  const mainCategory = typeof info?.mainCategory === "string" ? info.mainCategory : "";
   const categories = Array.isArray(info?.categories) ? info.categories : [];
   const queryNorm = normalizeForCompare(query);
   const titleNorm = normalizeForCompare(title);
@@ -184,6 +224,7 @@ function scoreGoogleItem(item: GoogleBooksItem, result: SearchResult, query: str
   if (queryNorm && titleNorm === queryNorm) score += 120;
   else if (queryNorm && titleNorm.startsWith(queryNorm)) score += 80;
   else if (queryNorm && titleNorm.includes(queryNorm)) score += 45;
+  else if (queryNorm && combinedNorm.includes(queryNorm)) score += 20;
 
   const exclusionTerms = [
     "bundle",
@@ -203,9 +244,21 @@ function scoreGoogleItem(item: GoogleBooksItem, result: SearchResult, query: str
   if (combinedNorm.includes("sons of ares")) score -= 60;
   if (combinedNorm.includes("philosophy")) score -= 50;
 
+  if (!result.author) score -= 45;
+  if (language === "en") score += 24;
+  else if (language) score -= 18;
+
+  if (printType === "BOOK") score += 8;
+  else if (printType) score -= 25;
+
   if (pageCount !== null) {
     if (pageCount > 900) score -= 30;
     if (pageCount >= 120 && pageCount <= 850) score += 20;
+  }
+
+  score += popularityBoost(ratingsCount, 14, 56);
+  if (averageRating !== null && averageRating >= 3) {
+    score += clamp((averageRating - 3) * 8, 0, 16);
   }
 
   if (result.isbn) score += 10;
@@ -214,9 +267,12 @@ function scoreGoogleItem(item: GoogleBooksItem, result: SearchResult, query: str
     score += 6;
   }
 
-  const categoryNorm = categories.map((entry) => normalizeForCompare(entry));
+  const categoryNorm = [mainCategory, ...categories].map((entry) => normalizeForCompare(entry)).filter(Boolean);
   if (categoryNorm.some((entry) => entry.includes("comics") || entry.includes("graphic novel"))) {
     score -= 25;
+  }
+  if (categoryNorm.some((entry) => entry.includes("fiction") || entry.includes("science fiction"))) {
+    score += 6;
   }
 
   const queryTokens = tokenize(query);
@@ -235,12 +291,15 @@ function getWorkKey(result: SearchResult): string {
 
 function compareCandidates(a: GoogleRankCandidate, b: GoogleRankCandidate): number {
   if (b.score !== a.score) return b.score - a.score;
-  const aYear = a.result.publishedYear ?? 9999;
-  const bYear = b.result.publishedYear ?? 9999;
-  if (aYear !== bYear) return aYear - bYear;
-  const aHasPages = a.result.coverUrl ? 1 : 0;
-  const bHasPages = b.result.coverUrl ? 1 : 0;
-  if (bHasPages !== aHasPages) return bHasPages - aHasPages;
+  const aHasAuthor = a.result.author ? 1 : 0;
+  const bHasAuthor = b.result.author ? 1 : 0;
+  if (bHasAuthor !== aHasAuthor) return bHasAuthor - aHasAuthor;
+  const aHasCover = a.result.coverUrl ? 1 : 0;
+  const bHasCover = b.result.coverUrl ? 1 : 0;
+  if (bHasCover !== aHasCover) return bHasCover - aHasCover;
+  const aYear = a.result.publishedYear ?? 0;
+  const bYear = b.result.publishedYear ?? 0;
+  if (bYear !== aYear) return bYear - aYear;
   return a.result.title.localeCompare(b.result.title);
 }
 
@@ -279,6 +338,32 @@ function rankAndCollapseGoogleItems(items: GoogleBooksItem[], query: string, lim
   return results;
 }
 
+function scoreOpenLibraryDoc(doc: OpenLibraryDoc, result: SearchResult, query: string): number {
+  const titleNorm = normalizeForCompare(result.title);
+  const queryNorm = normalizeForCompare(query);
+  const editionCount =
+    typeof doc.edition_count === "number" && Number.isFinite(doc.edition_count) ? doc.edition_count : null;
+  const readinglogCount =
+    typeof doc.readinglog_count === "number" && Number.isFinite(doc.readinglog_count) ? doc.readinglog_count : null;
+  const ratingsCount =
+    typeof doc.ratings_count === "number" && Number.isFinite(doc.ratings_count) ? doc.ratings_count : null;
+
+  let score = 0;
+  if (queryNorm && titleNorm === queryNorm) score += 100;
+  else if (queryNorm && titleNorm.startsWith(queryNorm)) score += 70;
+  else if (queryNorm && titleNorm.includes(queryNorm)) score += 35;
+
+  if (!result.author) score -= 35;
+  if (result.coverUrl) score += 8;
+  if (result.isbn) score += 8;
+
+  score += popularityBoost(editionCount, 10, 32);
+  score += popularityBoost(readinglogCount, 12, 36);
+  score += popularityBoost(ratingsCount, 10, 28);
+
+  return score;
+}
+
 function getOpenLibraryUserAgent() {
   const contactEmail = (process.env.OPEN_LIBRARY_CONTACT_EMAIL ?? "").trim();
   if (contactEmail) {
@@ -291,7 +376,10 @@ async function searchOpenLibrary(query: string, limit: number): Promise<SearchRe
   const url = new URL("https://openlibrary.org/search.json");
   url.searchParams.set("q", query);
   url.searchParams.set("limit", String(limit));
-  url.searchParams.set("fields", "key,title,author_name,publisher,cover_i,first_publish_year,isbn");
+  url.searchParams.set(
+    "fields",
+    "key,title,author_name,publisher,cover_i,first_publish_year,isbn,edition_count,readinglog_count,ratings_count",
+  );
 
   const response = await fetch(url.toString(), {
     headers: {
@@ -306,17 +394,36 @@ async function searchOpenLibrary(query: string, limit: number): Promise<SearchRe
 
   const json = (await response.json()) as { docs?: OpenLibraryDoc[] };
   const docs = Array.isArray(json.docs) ? json.docs : [];
-  const seen = new Set<string>();
-  const results: SearchResult[] = [];
+  const candidates: Array<{ result: SearchResult; score: number }> = [];
 
   for (const doc of docs) {
     const normalized = normalizeDoc(doc);
     if (!normalized) continue;
-    if (seen.has(normalized.id)) continue;
-    seen.add(normalized.id);
-    results.push(normalized);
+    candidates.push({
+      result: normalized,
+      score: scoreOpenLibraryDoc(doc, normalized, query),
+    });
   }
 
+  candidates.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    const aHasAuthor = a.result.author ? 1 : 0;
+    const bHasAuthor = b.result.author ? 1 : 0;
+    if (bHasAuthor !== aHasAuthor) return bHasAuthor - aHasAuthor;
+    const aHasCover = a.result.coverUrl ? 1 : 0;
+    const bHasCover = b.result.coverUrl ? 1 : 0;
+    if (bHasCover !== aHasCover) return bHasCover - aHasCover;
+    return a.result.title.localeCompare(b.result.title);
+  });
+
+  const seen = new Set<string>();
+  const results: SearchResult[] = [];
+  for (const candidate of candidates) {
+    if (seen.has(candidate.result.id)) continue;
+    seen.add(candidate.result.id);
+    results.push(candidate.result);
+    if (results.length >= limit) break;
+  }
   return results;
 }
 
@@ -324,25 +431,39 @@ async function searchGoogleBooks(query: string, limit: number): Promise<SearchRe
   const apiKey = (process.env.GOOGLE_BOOKS_API_KEY ?? "").trim();
   if (!apiKey) return [];
 
-  const url = new URL("https://www.googleapis.com/books/v1/volumes");
-  url.searchParams.set("q", query);
-  url.searchParams.set("maxResults", String(Math.min(Math.max(limit * 3, 20), 40)));
-  url.searchParams.set("printType", "books");
-  url.searchParams.set("projection", "full");
-  url.searchParams.set("orderBy", "relevance");
-  url.searchParams.set("key", apiKey);
+  const collected: GoogleBooksItem[] = [];
+  const seenIds = new Set<string>();
+  const queries = buildGoogleQueries(query);
 
-  const response = await fetch(url.toString(), {
-    headers: { Accept: "application/json" },
-    next: { revalidate: 60 },
-  });
-  if (!response.ok) {
-    throw new Error(`Google Books request failed (${response.status})`);
+  for (const googleQuery of queries) {
+    const url = new URL("https://www.googleapis.com/books/v1/volumes");
+    url.searchParams.set("q", googleQuery);
+    url.searchParams.set("maxResults", String(Math.min(Math.max(limit * 3, 20), 40)));
+    url.searchParams.set("printType", "books");
+    url.searchParams.set("projection", "full");
+    url.searchParams.set("orderBy", "relevance");
+    url.searchParams.set("langRestrict", "en");
+    url.searchParams.set("key", apiKey);
+
+    const response = await fetch(url.toString(), {
+      headers: { Accept: "application/json" },
+      next: { revalidate: 60 },
+    });
+    if (!response.ok) {
+      throw new Error(`Google Books request failed (${response.status})`);
+    }
+
+    const json = (await response.json()) as { items?: GoogleBooksItem[] };
+    const items = Array.isArray(json.items) ? json.items : [];
+    for (const item of items) {
+      const id = typeof item?.id === "string" ? item.id.trim() : "";
+      if (!id || seenIds.has(id)) continue;
+      seenIds.add(id);
+      collected.push(item);
+    }
   }
 
-  const json = (await response.json()) as { items?: GoogleBooksItem[] };
-  const items = Array.isArray(json.items) ? json.items : [];
-  return rankAndCollapseGoogleItems(items, query, limit);
+  return rankAndCollapseGoogleItems(collected, query, limit);
 }
 
 export async function GET(req: NextRequest) {
