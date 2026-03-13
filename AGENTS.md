@@ -182,6 +182,24 @@ Keep these contracts stable unless all callers are updated together.
   - graceful fallback messages,
   - source chapter visibility in assistant mode.
 
+## Figma Implementation Rules
+- When the user provides a Figma link, frame link, or node ID, inspect the design in Figma before implementing.
+- Do not rely on screenshots alone if a Figma reference is available.
+- For each relevant frame, inspect both:
+  - visual output (frame screenshot or screenshot export),
+  - metadata/design definitions (node tree, fills, strokes, corner radius, spacing, typography, padding, sizing, component structure).
+- Check shared definitions when available:
+  - local styles,
+  - variables/tokens,
+  - component instances and their visible variants/states.
+- Before implementing, summarize:
+  - what the user will see,
+  - which parts are directly defined in Figma,
+  - which parts are inferred because the design data is incomplete or ambiguous.
+- If the Figma bridge appears incomplete or misleading, say so explicitly and call out the exact fidelity risk instead of approximating silently.
+- When hidden layers, component states, or instance overrides may affect behavior or visuals, verify them before treating the design as final.
+- When implementing from Figma, map the design to existing app tokens in `app/globals.css` whenever possible; only introduce new styles when the current tokens cannot represent the design faithfully.
+
 ## Typography Conventions
 - Use app typography tokens from `app/globals.css` (`type-h1`, `type-h2`, `type-h3`, `type-title`, `type-body`, `type-button`, `type-caption`, `type-small`).
 - Buttons and button labels must use `type-button`.

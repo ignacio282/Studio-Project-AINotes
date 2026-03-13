@@ -98,7 +98,7 @@ export default function OnboardingPage() {
     if (index < SLIDES.length - 1) {
       goTo(index + 1);
     } else {
-      router.push("/books/new");
+      router.push("/books/new?from=onboarding");
     }
   };
 
