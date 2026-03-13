@@ -9,6 +9,8 @@ type Book = {
   author?: string | null;
   publisher?: string | null;
   total_chapters?: number | null;
+  total_pages?: number | null;
+  tracking_mode?: string | null;
   cover_url?: string | null;
   status?: string | null;
   created_at: string;
@@ -20,6 +22,8 @@ type BookRow = {
   author: string | null;
   publisher?: string | null;
   total_chapters?: number | null;
+  total_pages?: number | null;
+  tracking_mode?: string | null;
   cover_url?: string | null;
   status?: string | null;
   created_at: string;
@@ -37,7 +41,7 @@ export async function GET() {
     {
       const resp = await supabase
         .from("books")
-        .select("id,title,author,publisher,total_chapters,cover_url,status,created_at")
+        .select("id,title,author,publisher,total_chapters,total_pages,tracking_mode,cover_url,status,created_at")
         .order("created_at", { ascending: false });
       data = (resp.data ?? null) as BookRow[] | null;
       error = resp.error;
@@ -65,6 +69,8 @@ export async function POST(req: NextRequest) {
       author?: unknown;
       publisher?: unknown;
       totalChapters?: unknown;
+      totalPages?: unknown;
+      trackingMode?: unknown;
       coverUrl?: unknown;
       status?: unknown;
     };
@@ -72,22 +78,48 @@ export async function POST(req: NextRequest) {
     const author = typeof body.author === "string" ? body.author.trim() : null;
     const publisher = typeof body.publisher === "string" ? body.publisher.trim() : null;
     const totalChaptersRaw = typeof body.totalChapters === "number" ? body.totalChapters : Number(body.totalChapters);
+    const totalPagesRaw = typeof body.totalPages === "number" ? body.totalPages : Number(body.totalPages);
+    const hasExplicitTrackingMode = typeof body.trackingMode === "string" && body.trackingMode.trim().length > 0;
+    const trackingModeRaw = typeof body.trackingMode === "string" ? body.trackingMode.trim().toLowerCase() : "";
+    const trackingMode =
+      ["chapter", "page", "percent"].includes(trackingModeRaw) ? trackingModeRaw : "chapter";
     const total_chapters = Number.isFinite(totalChaptersRaw) && totalChaptersRaw > 0 ? Math.floor(totalChaptersRaw) : null;
+    const total_pages = Number.isFinite(totalPagesRaw) && totalPagesRaw > 0 ? Math.floor(totalPagesRaw) : null;
     const cover_url = typeof body.coverUrl === "string" ? body.coverUrl.trim() : null;
     const status = typeof body.status === "string" ? body.status.trim() : null;
     if (!title) {
       return new Response(JSON.stringify({ error: "Title is required" }), { status: 400 });
+    }
+    if (hasExplicitTrackingMode && trackingMode === "chapter" && !total_chapters) {
+      return new Response(JSON.stringify({ error: "Max chapter is required" }), { status: 400 });
+    }
+    if (hasExplicitTrackingMode && trackingMode === "page" && !total_pages) {
+      return new Response(JSON.stringify({ error: "Max page is required" }), { status: 400 });
     }
     const { supabase, user } = await requireUser();
     if (!user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
     // Attempt insert with extended fields; if it fails due to missing columns, retry with minimal payload.
+    const insertPayload = {
+      title,
+      author,
+      publisher,
+      total_chapters,
+      total_pages,
+      cover_url,
+      status,
+      user_id: user.id,
+    } as Record<string, unknown>;
+    if (hasExplicitTrackingMode) {
+      insertPayload.tracking_mode = trackingMode;
+    }
+
     const attempt = async () =>
       supabase
         .from("books")
-        .insert({ title, author, publisher, total_chapters, cover_url, status, user_id: user.id })
-        .select("id,title,author,publisher,total_chapters,cover_url,status,created_at")
+        .insert(insertPayload)
+        .select("id,title,author,publisher,total_chapters,total_pages,tracking_mode,cover_url,status,created_at")
         .single();
 
     const initial = await attempt();

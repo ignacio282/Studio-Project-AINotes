@@ -4,6 +4,13 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getBrowserSupabase } from "@/lib/supabase/client";
 import BackArrowIcon from "@/components/BackArrowIcon";
+import {
+  TRACKING_MODES,
+  getProgressSetupTotalLabel,
+  getProgressSetupTotalPlaceholder,
+  getTrackingModeLabel,
+  normalizeTrackingMode,
+} from "@/lib/books/progress";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -23,9 +30,14 @@ function createEmptyForm() {
     author: "",
     publisher: "",
     chapters: "",
+    pages: "",
+    trackingMode: TRACKING_MODES.CHAPTER,
     coverUrl: "",
   };
 }
+
+const INPUT_CLASSNAME =
+  "type-body h-[54px] w-full rounded-lg border border-[#a19f99] bg-[#f0eee5] px-4 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)]";
 
 function SearchIcon({ className = "h-6 w-6" }) {
   return (
@@ -84,6 +96,10 @@ function NewBookPageContent() {
 
   const showSkipForNow = searchParams.get("from") === "onboarding";
   const canSearch = useMemo(() => query.trim().length >= 2, [query]);
+  const trackingMode = normalizeTrackingMode(form.trackingMode);
+  const needsTotalField = trackingMode !== TRACKING_MODES.PERCENT;
+  const totalValue = trackingMode === TRACKING_MODES.PAGE ? form.pages : form.chapters;
+  const canSubmitBook = form.title.trim() && (!needsTotalField || String(totalValue).trim());
 
   useEffect(() => {
     if (step !== STEPS.results) return undefined;
@@ -131,7 +147,18 @@ function NewBookPageContent() {
 
   const onFormChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => {
+      if (name === "trackingMode") {
+        const nextMode = normalizeTrackingMode(value);
+        return {
+          ...prev,
+          trackingMode: nextMode,
+          chapters: nextMode === TRACKING_MODES.CHAPTER ? prev.chapters : "",
+          pages: nextMode === TRACKING_MODES.PAGE ? prev.pages : "",
+        };
+      }
+      return { ...prev, [name]: value };
+    });
   };
 
   const resetConfirmationState = (nextForm) => {
@@ -164,6 +191,8 @@ function NewBookPageContent() {
       author: asValue(result?.author),
       publisher: asValue(result?.publisher),
       chapters: "",
+      pages: "",
+      trackingMode: TRACKING_MODES.CHAPTER,
       coverUrl: asValue(result?.coverUrl),
     });
     setStep(STEPS.confirm);
@@ -223,6 +252,10 @@ function NewBookPageContent() {
 
   async function onSubmit(e) {
     e.preventDefault();
+    if (needsTotalField && !String(totalValue).trim()) {
+      setError(`${getProgressSetupTotalLabel(trackingMode)} is required.`);
+      return;
+    }
     setSubmitting(true);
     setError("");
 
@@ -254,12 +287,22 @@ function NewBookPageContent() {
         uploadedCoverUrl = data?.publicUrl || undefined;
       }
 
+      const trackingMode = normalizeTrackingMode(form.trackingMode);
       const totalChapters = form.chapters ? Number(form.chapters) : undefined;
+      const totalPages = form.pages ? Number(form.pages) : undefined;
       const payload = {
         title: form.title.trim(),
         author: form.author.trim() || undefined,
         publisher: form.publisher.trim() || undefined,
-        totalChapters: Number.isFinite(totalChapters) && totalChapters > 0 ? totalChapters : undefined,
+        trackingMode,
+        totalChapters:
+          trackingMode === TRACKING_MODES.CHAPTER && Number.isFinite(totalChapters) && totalChapters > 0
+            ? totalChapters
+            : undefined,
+        totalPages:
+          trackingMode === TRACKING_MODES.PAGE && Number.isFinite(totalPages) && totalPages > 0
+            ? totalPages
+            : undefined,
         coverUrl: uploadedCoverUrl,
         status: "reading",
       };
@@ -471,7 +514,7 @@ function NewBookPageContent() {
                   name="title"
                   value={form.title}
                   onChange={onFormChange}
-                  className="type-body h-[52px] w-full rounded-lg border border-[#a19f99] bg-[#f7f6f3] px-2 text-[var(--color-text-main)] outline-none"
+                  className={INPUT_CLASSNAME}
                   required
                 />
               </FormField>
@@ -482,23 +525,41 @@ function NewBookPageContent() {
                   name="author"
                   value={form.author}
                   onChange={onFormChange}
-                  className="type-body h-[52px] w-full rounded-lg border border-[#a19f99] bg-[#f7f6f3] px-2 text-[var(--color-text-main)] outline-none"
+                  className={INPUT_CLASSNAME}
                 />
               </FormField>
 
-              <FormField label="# Chapters">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min="1"
-                  step="1"
-                  name="chapters"
-                  value={form.chapters}
+              <FormField label="How do you want to track your place in this book?">
+                <select
+                  name="trackingMode"
+                  value={trackingMode}
                   onChange={onFormChange}
-                  placeholder="Enter the number of chapters"
-                  className="type-body h-[54px] w-full rounded-lg border border-[#a19f99] bg-[#f7f6f3] px-2 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)]"
-                />
+                  className={INPUT_CLASSNAME}
+                >
+                  {[TRACKING_MODES.CHAPTER, TRACKING_MODES.PAGE, TRACKING_MODES.PERCENT].map((mode) => (
+                    <option key={mode} value={mode}>
+                      {getTrackingModeLabel(mode)}
+                    </option>
+                  ))}
+                </select>
               </FormField>
+
+              {needsTotalField ? (
+                <FormField label={getProgressSetupTotalLabel(trackingMode)}>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    step="1"
+                    name={trackingMode === TRACKING_MODES.PAGE ? "pages" : "chapters"}
+                    value={trackingMode === TRACKING_MODES.PAGE ? form.pages : form.chapters}
+                    onChange={onFormChange}
+                    placeholder={getProgressSetupTotalPlaceholder(trackingMode)}
+                    className={INPUT_CLASSNAME}
+                    required={needsTotalField}
+                  />
+                </FormField>
+              ) : null}
             </div>
 
             {error ? <p className="type-caption mt-4 text-red-700">{error}</p> : null}
@@ -507,7 +568,7 @@ function NewBookPageContent() {
           <div className="border-t border-[color:var(--rc-color-text-secondary)/15%] bg-[#f7f6f3] px-6 pb-6 pt-4">
             <button
               type="submit"
-              disabled={submitting || !form.title.trim()}
+              disabled={submitting || !canSubmitBook}
               className="type-button w-full rounded-lg bg-[var(--color-accent)] px-5 py-3 text-center text-[var(--color-text-on-accent)] disabled:opacity-60"
             >
               {submitting ? "Adding..." : "Add book"}

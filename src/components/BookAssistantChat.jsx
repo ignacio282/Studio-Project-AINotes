@@ -2,6 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import {
+  formatProgressLabel,
+  formatProgressSources,
+  normalizeTrackingMode,
+} from "@/lib/books/progress";
 
 function safeId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -44,19 +49,18 @@ function renderEntityLinks(text, entities, bookId) {
   });
 }
 
-function formatSources(raw) {
+function formatSources(raw, trackingMode) {
   const list = Array.isArray(raw)
     ? Array.from(new Set(raw.filter((n) => Number.isFinite(n)).map((n) => Number(n))))
     : [];
   const sorted = list.sort((a, b) => a - b);
-  if (sorted.length === 0) return "";
-  return `Sources: chapters ${sorted.join(", ")}`;
+  return formatProgressSources(trackingMode, sorted);
 }
 
-function ChatMessage({ message, onAction, entities, bookId }) {
+function ChatMessage({ message, onAction, entities, bookId, trackingMode }) {
   const isAssistant = message.role === "assistant";
   const fullWidth = message.fullWidth === true;
-  const sourcesLabel = formatSources(message.sources);
+  const sourcesLabel = formatSources(message.sources, trackingMode);
   const actions = Array.isArray(message.actions)
     ? message.actions.filter((action) => action && typeof action.label === "string")
     : [];
@@ -131,13 +135,14 @@ function TypingIndicator() {
   );
 }
 
-export default function BookAssistantChat({ bookId, qaState = null }) {
+export default function BookAssistantChat({ bookId, trackingMode, qaState = null }) {
+  const normalizedTrackingMode = normalizeTrackingMode(trackingMode);
   const [messages, setMessages] = useState(() => [
     {
       id: safeId(),
       role: "assistant",
       fullWidth: true,
-      content: `Hi! I am your Scriba assistant. I answer using only the notes you have saved for this book, up through your latest logged chapter.\n\nTry questions like:\n- Who is [character] again?\n- How are [character A] and [character B] connected?\n- Can you summarize what I have captured so far?\n\nIf your notes are thin, I will say that clearly and suggest what to capture next.`,
+      content: `Hi! I am your Scriba assistant. I answer using only the notes you have saved for this book, up through your latest logged progress.\n\nTry questions like:\n- Who is [character] again?\n- How are [character A] and [character B] connected?\n- Can you summarize what I have captured so far?\n\nIf your notes are thin, I will say that clearly and suggest what to capture next.`,
     },
   ]);
   const [inputValue, setInputValue] = useState("");
@@ -267,7 +272,7 @@ export default function BookAssistantChat({ bookId, qaState = null }) {
           id: safeId(),
           role: "assistant",
           fullWidth: true,
-          content: "I do not have any chapter notes for this book yet. Add your first note and I can help right away.",
+          content: "I do not have any saved reading notes for this book yet. Add your first note and I can help right away.",
         },
       ]);
       return;
@@ -419,9 +424,11 @@ export default function BookAssistantChat({ bookId, qaState = null }) {
       <div ref={scrollRef} className="assistant-scroll">
         <div className="assistant-scroll-inner">
           {scopeChapter ? (
-            <div className="assistant-scope">Using notes up through chapter {scopeChapter}</div>
+            <div className="assistant-scope">
+              Using notes up through {formatProgressLabel(normalizedTrackingMode, scopeChapter)}
+            </div>
           ) : (
-            <div className="assistant-scope">No chapter notes yet. Add a note and I can help you review it.</div>
+            <div className="assistant-scope">No saved reading notes yet. Add a note and I can help you review it.</div>
           )}
           {messages.map((message) => (
             <ChatMessage
@@ -430,6 +437,7 @@ export default function BookAssistantChat({ bookId, qaState = null }) {
               onAction={handleAction}
               entities={entities}
               bookId={bookId}
+              trackingMode={normalizedTrackingMode}
             />
           ))}
           {isLoading ? <TypingIndicator /> : null}
@@ -476,7 +484,7 @@ export default function BookAssistantChat({ bookId, qaState = null }) {
             </div>
             {promptDraft?.chapterNumber ? (
               <div className="type-caption mt-1 text-[var(--color-secondary)]">
-                Chapter {promptDraft.chapterNumber}
+                {formatProgressLabel(normalizedTrackingMode, promptDraft.chapterNumber)}
               </div>
             ) : null}
 

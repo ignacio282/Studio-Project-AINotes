@@ -6,6 +6,7 @@ import BackArrowIcon from "@/components/BackArrowIcon";
 import BookHubTabs from "@/components/BookHubTabs";
 import QaLoadingPage from "@/components/qa/QaLoadingPage";
 import { resolveQaState } from "@/lib/qa/state";
+import { normalizeTrackingMode } from "@/lib/books/progress";
 
 function CalendarIcon({ className }) {
   return (
@@ -152,7 +153,7 @@ export default async function BookHubPage({ params, searchParams }) {
 
   const { data: book } = await supabase
     .from("books")
-    .select("id,title,author,cover_url,total_chapters,created_at")
+    .select("id,title,author,cover_url,total_chapters,total_pages,tracking_mode,created_at")
     .eq("id", bookId)
     .single();
 
@@ -178,6 +179,7 @@ export default async function BookHubPage({ params, searchParams }) {
 
   const startedOn = firstNoteAt ?? book?.created_at ?? null;
   const filtersDisabled = noteCount === 0;
+  const trackingMode = normalizeTrackingMode(book?.tracking_mode);
   const notesForTabs = notes.map((n) => ({
     id: n.id,
     chapter_number: n.chapter_number,
@@ -248,6 +250,7 @@ export default async function BookHubPage({ params, searchParams }) {
 
         <BookHubTabs
           bookId={bookId}
+          trackingMode={trackingMode}
           noteCount={noteCount}
           notes={notesForTabs}
           filtersDisabled={filtersDisabled}
@@ -261,7 +264,7 @@ export default async function BookHubPage({ params, searchParams }) {
           <BookChapterStartSheet
             bookId={bookId}
             bookTitle={book?.title || ""}
-            totalChapters={book?.total_chapters ?? null}
+            trackingMode={trackingMode}
             openOnMount={openStartNote}
           />
           <Link

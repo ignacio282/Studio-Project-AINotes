@@ -4,6 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import BackArrowIcon from "@/components/BackArrowIcon";
+import {
+  TRACKING_MODES,
+  formatProgressLabel,
+  getProgressRange,
+  getProgressSessionFieldLabel,
+  getProgressSessionHelper,
+  getProgressSessionPlaceholder,
+  normalizeTrackingMode,
+} from "@/lib/books/progress";
 
 const AI_ENDPOINT =
   process.env.NEXT_PUBLIC_AI_ENDPOINT || "/api/ai-reply";
@@ -15,7 +24,7 @@ const REFLECTION_CHANGE_ENDPOINT =
   process.env.NEXT_PUBLIC_REFLECTION_CHANGE_ENDPOINT || "/api/reflection-change";
 
 // Initial assistant greeting shown in the chat transcript
-const INTRO_MESSAGE = `Hey! I'm all ears for the chapter you just read. Drop in anything that made you pause - a character choice, a setting detail, a twist, even a feeling.
+const INTRO_MESSAGE = `Hey! I'm all ears for what you just read. Drop in anything that made you pause - a character choice, a setting detail, a twist, even a feeling.
 Things I love hearing about:
 - Who showed up and what they did
 - Places or atmosphere that stood out
@@ -29,8 +38,9 @@ Ready when you are.`;
 const sessionTemplate = Object.freeze({
   bookId: "book123",
   bookTitle: "Red Rising",
-  chapterId: "chapter-5",
-  chapterTitle: "Chapter 5",
+  chapterId: "reading-session",
+  chapterTitle: "Reading session",
+  trackingMode: TRACKING_MODES.CHAPTER,
   notes: [],
   summary: createEmptySummary(),
 });
@@ -99,6 +109,12 @@ function getChapterNumberFromSession(session) {
     return Number.isFinite(n) ? n : 0;
   }
   return 0;
+}
+
+function formatSessionProgressLabel(session, progressValue) {
+  return (
+    formatProgressLabel(session?.trackingMode, progressValue) || "Reading session"
+  );
 }
 
 // Generates message IDs using crypto when available
@@ -1699,10 +1715,105 @@ function ChevronDown({ open }) {
   );
 }
 
+function ChapterBoundarySheet({
+  open,
+  trackingMode,
+  value,
+  error,
+  onChange,
+  onClose,
+  onConfirm,
+  isSaving,
+}) {
+  const range = getProgressRange(trackingMode);
+  return (
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.button
+            type="button"
+            aria-label="Close chapter prompt"
+            className="absolute inset-0 bg-black/30"
+            onClick={isSaving ? undefined : onClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+          <motion.div
+            className="relative z-10 w-full max-w-2xl rounded-t-3xl bg-[var(--color-text-on-accent)] px-4 pb-6 pt-4 shadow-xl"
+            initial={{ y: 320 }}
+            animate={{ y: 0 }}
+            exit={{ y: 320 }}
+            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+          >
+            <div className="mx-auto h-1 w-12 rounded-full bg-[var(--color-secondary)]/50" />
+
+            <section className="mt-4 rounded-2xl bg-[var(--color-surface)] p-4">
+              <div className="type-h3 text-[var(--color-text-main)]">
+                How far did you get in this session?
+              </div>
+              <div className="type-caption mt-2 text-[var(--color-secondary)]">
+                {getProgressSessionHelper(trackingMode)}
+              </div>
+
+              <label className="mt-4 block">
+                <span className="type-caption text-[var(--color-secondary)]">
+                  {getProgressSessionFieldLabel(trackingMode)}
+                </span>
+                <input
+                  type="number"
+                  min={range.min}
+                  max={range.max}
+                  step="1"
+                  inputMode="numeric"
+                  value={value}
+                  onChange={(event) => onChange(event.target.value)}
+                  disabled={isSaving}
+                  placeholder={getProgressSessionPlaceholder(trackingMode)}
+                  className="type-body mt-2 w-full rounded-2xl border border-[var(--color-accent-subtle)] bg-[var(--color-page)] px-4 py-3 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] disabled:cursor-not-allowed disabled:opacity-60"
+                />
+              </label>
+
+              {error ? (
+                <div className="type-caption mt-2 text-red-500">{error}</div>
+              ) : null}
+            </section>
+
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSaving}
+                className="type-button flex-1 rounded-2xl border border-[var(--color-accent-subtle)] px-5 py-3 text-[var(--color-text-main)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onConfirm}
+                disabled={isSaving}
+                className="type-button flex-1 rounded-2xl bg-[var(--color-accent)] px-5 py-3 text-[var(--color-text-on-accent)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSaving ? "Saving..." : "Save session"}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
 // Main journaling surface: header, transcript, composer, and summary toggle
 export default function JournalingPage(props) {
   const initialBookId = props?.initialBookId;
   const initialBookTitle = props?.initialBookTitle;
+  const initialTrackingMode = normalizeTrackingMode(props?.initialTrackingMode);
   const initialChapterNumberRaw = props?.initialChapterNumber;
   const initialChapterTitle = props?.initialChapterTitle;
   const initialChapterNumber =
@@ -1728,6 +1839,7 @@ export default function JournalingPage(props) {
     bookId: typeof initialBookId === "string" && initialBookId ? initialBookId : sessionTemplate.bookId,
     bookTitle:
       typeof initialBookTitle === "string" && initialBookTitle ? initialBookTitle : sessionTemplate.bookTitle,
+    trackingMode: initialTrackingMode || sessionTemplate.trackingMode,
     chapterNumber: initialChapterNumber,
     chapterTitle:
       typeof initialChapterTitle === "string" && initialChapterTitle
@@ -1740,6 +1852,13 @@ export default function JournalingPage(props) {
   const [isUpdatingSummary, setIsUpdatingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState(null);
   const [summaryHighlights, setSummaryHighlights] = useState({});
+  const [isChapterPromptOpen, setIsChapterPromptOpen] = useState(false);
+  const [chapterPromptValue, setChapterPromptValue] = useState(() =>
+    initialChapterNumber ? String(initialChapterNumber) : "",
+  );
+  const [chapterPromptError, setChapterPromptError] = useState("");
+  const [isSavingSessionNotes, setIsSavingSessionNotes] = useState(false);
+  const [chapterPromptTarget, setChapterPromptTarget] = useState("summary");
   const [reflectionChangeSummary, setReflectionChangeSummary] = useState("");
   const [isReflectionChangeSummaryLoading, setIsReflectionChangeSummaryLoading] = useState(false);
   const [flowStep, setFlowStep] = useState(FLOW_STATES.JOURNALING);
@@ -1752,6 +1871,7 @@ export default function JournalingPage(props) {
   const scrollRef = useRef(null);
   const composerInputRef = useRef(null);
   const reflectionInputRef = useRef(null);
+  const sessionRef = useRef(null);
   const aiControllerRef = useRef(null);
   const summaryRef = useRef(session.summary);
   const reflectionTimerRef = useRef(null);
@@ -1761,6 +1881,7 @@ export default function JournalingPage(props) {
   const reflectionDiffRef = useRef({ added: {} });
   const reflectionChangeSummaryRequestRef = useRef(false);
   const noteIdMapRef = useRef(new Map()); // localId -> dbId
+  const noteSummarySnapshotsRef = useRef(new Map()); // localId -> ai summary snapshot
   const typoPromptSeenRef = useRef(new Set());
   const typoResolutionPendingRef = useRef(new Set());
   const [isCharacterSheetOpen, setIsCharacterSheetOpen] = useState(false);
@@ -1808,6 +1929,10 @@ export default function JournalingPage(props) {
       reflectionInputRef.current.focus();
     }
   }, [isReflectionComposerLocked, flowStep]);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   useEffect(() => {
     summaryRef.current = session.summary;
@@ -1906,6 +2031,140 @@ export default function JournalingPage(props) {
     setSummaryHighlights(highlightMap);
   };
 
+  const patchNoteSummary = async (dbId, summarySnapshot) => {
+    if (!dbId || !summarySnapshot) {
+      return;
+    }
+
+    const patchRes = await fetch(`/api/notes/${dbId}/summary`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ aiSummary: summarySnapshot }),
+    });
+
+    if (!patchRes.ok) {
+      return;
+    }
+
+    const patchPayload = await patchRes.json().catch(() => null);
+    const typoSuggestions = Array.isArray(patchPayload?.typoSuggestions)
+      ? patchPayload.typoSuggestions
+      : [];
+
+    if (typoSuggestions.length === 0) {
+      return;
+    }
+
+    const nextPrompts = [];
+    typoSuggestions.forEach((suggestion) => {
+      const promptKey = buildTypoPromptKey(suggestion);
+      if (!promptKey || typoPromptSeenRef.current.has(promptKey)) {
+        return;
+      }
+      const candidateName =
+        typeof suggestion?.candidateName === "string"
+          ? suggestion.candidateName.trim()
+          : "";
+      const matchedName =
+        typeof suggestion?.matchedName === "string"
+          ? suggestion.matchedName.trim()
+          : "";
+      const matchedSlug =
+        typeof suggestion?.matchedSlug === "string"
+          ? suggestion.matchedSlug.trim()
+          : "";
+      const noteId =
+        typeof suggestion?.noteId === "string" ? suggestion.noteId.trim() : dbId;
+      if (!candidateName || !matchedName || !matchedSlug || !noteId) {
+        return;
+      }
+      typoPromptSeenRef.current.add(promptKey);
+      nextPrompts.push({
+        id: safeUuid(),
+        role: "ai",
+        content: `You just mentioned "${candidateName}", did you mean "${matchedName}"?`,
+        createdAt: new Date().toISOString(),
+        actions: [
+          {
+            id: "typo_same",
+            label: "Yes",
+            noteId,
+            candidateName,
+            matchedName,
+            matchedSlug,
+          },
+          {
+            id: "typo_different",
+            label: "No",
+            noteId,
+            candidateName,
+            matchedName,
+            matchedSlug,
+          },
+        ],
+      });
+    });
+
+    if (nextPrompts.length > 0) {
+      setMessages((prev) => [...prev, ...nextPrompts]);
+    }
+  };
+
+  const syncChapterMemory = async (bookId, chapterNumber, summarySnapshot) => {
+    const isUuid =
+      typeof bookId === "string" &&
+      /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(
+        bookId,
+      );
+
+    if (!isUuid || !Number.isFinite(chapterNumber) || chapterNumber <= 0) {
+      return;
+    }
+
+    await fetch(`/api/books/${encodeURIComponent(bookId)}/chapter-memory`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chapterNumber, summary: summarySnapshot }),
+    });
+  };
+
+  const ensureBookIdForPersistence = async (bookIdCandidate) => {
+    const existingBookId =
+      typeof bookIdCandidate === "string" ? bookIdCandidate : session.bookId;
+    const isUuid =
+      typeof existingBookId === "string" &&
+      /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(
+        existingBookId,
+      );
+
+    if (isUuid) {
+      return existingBookId;
+    }
+
+    const bookRes = await fetch("/api/books", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: session.bookTitle || "My Book" }),
+    });
+
+    if (!bookRes.ok) {
+      return existingBookId;
+    }
+
+    const payload = await bookRes.json();
+    const newId = payload?.book?.id;
+    if (newId) {
+      sessionRef.current = {
+        ...(sessionRef.current || {}),
+        bookId: newId,
+      };
+      setSession((prev) => ({ ...prev, bookId: newId }));
+      return newId;
+    }
+
+    return existingBookId;
+  };
+
   const updateSummaryWithAI = async (latestNote, nextNotes, previousSummary, options = {}) => {
     if (!latestNote) return;
     if (aiControllerRef.current) {
@@ -1950,6 +2209,9 @@ export default function JournalingPage(props) {
       const payload = await res.json();
       if (payload?.summary) {
         const normalizedSummary = normalizeSummary(payload.summary);
+        if (noteLocalId) {
+          noteSummarySnapshotsRef.current.set(noteLocalId, normalizedSummary);
+        }
         if (source === "reflection") {
           const diff = computeSummaryDiff(previousNormalized, normalizedSummary);
           applyReflectionDiff(diff.added);
@@ -1969,65 +2231,7 @@ export default function JournalingPage(props) {
           if (noteLocalId && noteIdMapRef.current instanceof Map) {
             const dbId = noteIdMapRef.current.get(noteLocalId);
             if (dbId) {
-              const patchRes = await fetch(`/api/notes/${dbId}/summary`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ aiSummary: normalizedSummary }),
-              });
-              if (patchRes.ok) {
-                const patchPayload = await patchRes.json().catch(() => null);
-                const typoSuggestions = Array.isArray(patchPayload?.typoSuggestions)
-                  ? patchPayload.typoSuggestions
-                  : [];
-                if (typoSuggestions.length > 0) {
-                  const nextPrompts = [];
-                  typoSuggestions.forEach((suggestion) => {
-                    const promptKey = buildTypoPromptKey(suggestion);
-                    if (!promptKey || typoPromptSeenRef.current.has(promptKey)) {
-                      return;
-                    }
-                    const candidateName =
-                      typeof suggestion?.candidateName === "string" ? suggestion.candidateName.trim() : "";
-                    const matchedName =
-                      typeof suggestion?.matchedName === "string" ? suggestion.matchedName.trim() : "";
-                    const matchedSlug =
-                      typeof suggestion?.matchedSlug === "string" ? suggestion.matchedSlug.trim() : "";
-                    const noteId =
-                      typeof suggestion?.noteId === "string" ? suggestion.noteId.trim() : dbId;
-                    if (!candidateName || !matchedName || !matchedSlug || !noteId) {
-                      return;
-                    }
-                    typoPromptSeenRef.current.add(promptKey);
-                    nextPrompts.push({
-                      id: safeUuid(),
-                      role: "ai",
-                      content: `You just mentioned "${candidateName}", did you mean "${matchedName}"?`,
-                      createdAt: new Date().toISOString(),
-                      actions: [
-                        {
-                          id: "typo_same",
-                          label: "Yes",
-                          noteId,
-                          candidateName,
-                          matchedName,
-                          matchedSlug,
-                        },
-                        {
-                          id: "typo_different",
-                          label: "No",
-                          noteId,
-                          candidateName,
-                          matchedName,
-                          matchedSlug,
-                        },
-                      ],
-                    });
-                  });
-                  if (nextPrompts.length > 0) {
-                    setMessages((prev) => [...prev, ...nextPrompts]);
-                  }
-                }
-              }
+              await patchNoteSummary(dbId, normalizedSummary);
             }
           }
         } catch {
@@ -2035,18 +2239,9 @@ export default function JournalingPage(props) {
         }
 
         try {
-          const chapterNumber = getChapterNumberFromSession(session);
-          const bookId = session.bookId;
-          const isUuid =
-            typeof bookId === "string" &&
-            /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(bookId);
-          if (isUuid && Number.isFinite(chapterNumber) && chapterNumber > 0) {
-            await fetch(`/api/books/${encodeURIComponent(bookId)}/chapter-memory`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chapterNumber, summary: normalizedSummary }),
-            });
-          }
+          const currentSession = sessionRef.current;
+          const chapterNumber = getChapterNumberFromSession(currentSession);
+          await syncChapterMemory(currentSession?.bookId, chapterNumber, normalizedSummary);
         } catch {
           // non-blocking
         }
@@ -2065,26 +2260,29 @@ export default function JournalingPage(props) {
     }
   };
 
-  const persistNoteToDB = async (localId, content, createdAt) => {
+  const persistNoteToDB = async (
+    localId,
+    content,
+    createdAt,
+    options = {},
+  ) => {
     try {
-      const chapterNumber = getChapterNumberFromSession(session);
-      let bookId = session.bookId;
-      const isUuid = typeof bookId === "string" && /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(bookId);
+      const chapterNumberOverride = Number(options?.chapterNumber);
+      const chapterNumber =
+        Number.isFinite(chapterNumberOverride) && chapterNumberOverride > 0
+          ? chapterNumberOverride
+          : getChapterNumberFromSession(session);
+      if (!Number.isFinite(chapterNumber) || chapterNumber <= 0) {
+        return null;
+      }
+      const bookId = await ensureBookIdForPersistence(options?.bookId);
+      const isUuid =
+        typeof bookId === "string" &&
+        /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(
+          bookId,
+        );
       if (!isUuid) {
-        // Create a book on the fly using the current session title
-        const bookRes = await fetch("/api/books", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: session.bookTitle || "My Book" }),
-        });
-        if (bookRes.ok) {
-          const payload = await bookRes.json();
-          const newId = payload?.book?.id;
-          if (newId) {
-            bookId = newId;
-            setSession((prev) => ({ ...prev, bookId }));
-          }
-        }
+        return null;
       }
       const res = await fetch("/api/notes", {
         method: "POST",
@@ -2096,13 +2294,102 @@ export default function JournalingPage(props) {
           createdAt,
         }),
       });
-      if (!res.ok) return;
+      if (!res.ok) return null;
       const data = await res.json();
       if (data && data.id && noteIdMapRef.current instanceof Map) {
         noteIdMapRef.current.set(localId, data.id);
       }
+      const summarySnapshot =
+        options?.summarySnapshot || noteSummarySnapshotsRef.current.get(localId);
+      if (data?.id && summarySnapshot) {
+        await patchNoteSummary(data.id, summarySnapshot);
+      }
+      return { id: data?.id ?? null, bookId };
     } catch {
       // ignore persistence failures for now
+      return null;
+    }
+  };
+
+  const savePendingSessionNotes = async (chapterNumber) => {
+    const unsavedNotes = session.notes.filter(
+      (note) => !noteIdMapRef.current.has(note.id),
+    );
+    let bookId = session.bookId;
+
+    for (const note of unsavedNotes) {
+      const saved = await persistNoteToDB(note.id, note.content, note.createdAt, {
+        chapterNumber,
+        bookId,
+      });
+      if (saved?.bookId) {
+        bookId = saved.bookId;
+      }
+    }
+
+    await syncChapterMemory(
+      bookId,
+      chapterNumber,
+      normalizeSummary(summaryRef.current),
+    );
+  };
+
+  const closeChapterPrompt = () => {
+    if (isSavingSessionNotes) {
+      return;
+    }
+    setIsChapterPromptOpen(false);
+    setChapterPromptError("");
+    setChapterPromptTarget("summary");
+  };
+
+  const confirmSessionChapter = async () => {
+    const parsedChapter = Number.parseInt(chapterPromptValue, 10);
+    const trackingMode = normalizeTrackingMode(sessionRef.current?.trackingMode);
+    const range = getProgressRange(trackingMode);
+    if (
+      !Number.isInteger(parsedChapter) ||
+      parsedChapter < range.min ||
+      (Number.isFinite(range.max) && parsedChapter > range.max)
+    ) {
+      setChapterPromptError(
+        trackingMode === TRACKING_MODES.PERCENT
+          ? "Enter a percentage between 1 and 100."
+          : `Enter a ${trackingMode === TRACKING_MODES.PAGE ? "page" : "chapter"} number greater than 0.`,
+      );
+      return;
+    }
+
+    setIsSavingSessionNotes(true);
+    setChapterPromptError("");
+    try {
+      await savePendingSessionNotes(parsedChapter);
+      sessionRef.current = {
+        ...(sessionRef.current || {}),
+        chapterNumber: parsedChapter,
+        chapterTitle: formatSessionProgressLabel(sessionRef.current, parsedChapter),
+      };
+      setSession((prev) => ({
+        ...prev,
+        chapterNumber: parsedChapter,
+        chapterTitle: formatSessionProgressLabel(prev, parsedChapter),
+      }));
+      setChapterPromptValue(String(parsedChapter));
+      setIsChapterPromptOpen(false);
+      if (chapterPromptTarget === "exit") {
+        setChapterPromptTarget("summary");
+        handleFinishSession(false);
+        return;
+      }
+      if (!sessionCompletedAt) {
+        setSessionCompletedAt(new Date().toISOString());
+      }
+      setChapterPromptTarget("summary");
+      setFlowStep(FLOW_STATES.SUMMARY);
+    } catch {
+      setChapterPromptError("Unable to save this session right now.");
+    } finally {
+      setIsSavingSessionNotes(false);
     }
   };
 
@@ -2303,8 +2590,10 @@ export default function JournalingPage(props) {
       ...prev,
       notes: nextNotes,
     }));
-    // save note in background, then update summary; patch summary back to this note id
-    void persistNoteToDB(userMessage.id, trimmed, createdAt);
+    // Persist immediately only when a chapter boundary is already known.
+    if (getChapterNumberFromSession(session) > 0) {
+      void persistNoteToDB(userMessage.id, trimmed, createdAt);
+    }
     void updateSummaryWithAI(trimmed, nextNotes, previousSummary, { noteLocalId: userMessage.id });
 
     setInputValue("");
@@ -2354,6 +2643,13 @@ export default function JournalingPage(props) {
   };
 
   const handleDoneClick = () => {
+    if (session.notes.length > 0 && getChapterNumberFromSession(session) <= 0) {
+      setChapterPromptValue("");
+      setChapterPromptError("");
+      setChapterPromptTarget("summary");
+      setIsChapterPromptOpen(true);
+      return;
+    }
     if (!sessionCompletedAt) {
       setSessionCompletedAt(new Date().toISOString());
     }
@@ -2560,7 +2856,20 @@ export default function JournalingPage(props) {
     setFlowStep(FLOW_STATES.REFLECTION);
   };
 
-  const handleFinishSession = () => {
+  const handleFinishSession = (allowChapterPrompt = true) => {
+    if (
+      allowChapterPrompt &&
+      flowStep === FLOW_STATES.JOURNALING &&
+      session.notes.length > 0 &&
+      getChapterNumberFromSession(session) <= 0
+    ) {
+      setChapterPromptValue("");
+      setChapterPromptError("");
+      setChapterPromptTarget("exit");
+      setIsChapterPromptOpen(true);
+      return;
+    }
+
     const bookId = session?.bookId;
     const isUuid =
       typeof bookId === "string" &&
@@ -3269,6 +3578,21 @@ export default function JournalingPage(props) {
         onClose={() => setShowSummary(false)}
         session={session}
         highlights={summaryHighlights}
+      />
+      <ChapterBoundarySheet
+        open={isChapterPromptOpen}
+        trackingMode={session.trackingMode}
+        value={chapterPromptValue}
+        error={chapterPromptError}
+        onChange={(value) => {
+          setChapterPromptValue(value);
+          if (chapterPromptError) {
+            setChapterPromptError("");
+          }
+        }}
+        onClose={closeChapterPrompt}
+        onConfirm={confirmSessionChapter}
+        isSaving={isSavingSessionNotes}
       />
     </div>
   );

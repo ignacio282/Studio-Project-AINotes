@@ -6,6 +6,12 @@ import { fetchBooksDashboardData } from "@/lib/books/dashboard-data";
 import HomeLoading from "./loading";
 import { requireUser } from "@/lib/supabase/require-user";
 import { resolveQaState } from "@/lib/qa/state";
+import {
+  getProgressEmptyText,
+  getProgressLastReadText,
+  getProgressProgressText,
+  normalizeTrackingMode,
+} from "@/lib/books/progress";
 
 function TodayIcon({ className = "" }) {
   return (
@@ -113,24 +119,24 @@ export default async function HomePage({ searchParams }) {
   const effectiveBooks = qaState === "empty" ? [] : books;
   const effectiveCurrentBook = qaState === "empty" ? null : currentBook;
   const hasCurrentBook = Boolean(effectiveCurrentBook);
-  const switchHref = effectiveBooks.length > 1 ? "/library/switch" : "/library";
+  const switchHref = "/library/switch";
 
   const title = effectiveCurrentBook?.title?.trim() || "No current book";
   const author = effectiveCurrentBook?.author?.trim() || (hasCurrentBook ? "Author not set" : "Add a book to begin");
   const startedOn = formatDate(effectiveCurrentBook?.firstNoteAt || effectiveCurrentBook?.created_at) || "";
   const noteCount = Number.isFinite(Number(effectiveCurrentBook?.noteCount)) ? Number(effectiveCurrentBook.noteCount) : 0;
-  const lastChapter = Number.isFinite(Number(effectiveCurrentBook?.lastChapter)) ? Number(effectiveCurrentBook.lastChapter) : null;
-  const totalChapters =
-    Number.isFinite(Number(effectiveCurrentBook?.totalChapters)) && Number(effectiveCurrentBook.totalChapters) > 0
-      ? Number(effectiveCurrentBook.totalChapters)
-      : null;
+  const trackingMode = normalizeTrackingMode(effectiveCurrentBook?.trackingMode);
+  const lastProgressValue =
+    Number.isFinite(Number(effectiveCurrentBook?.lastProgressValue)) ? Number(effectiveCurrentBook.lastProgressValue) : null;
+  const totalProgressValue =
+    Number.isFinite(Number(effectiveCurrentBook?.totalProgressValue)) ? Number(effectiveCurrentBook.totalProgressValue) : null;
   const progressPercent = formatPercent(effectiveCurrentBook?.progressPercent ?? 0);
   const daysAgoLabel = hasCurrentBook
     ? effectiveCurrentBook?.daysAgoLabel?.trim() || "No reading sessions logged yet."
     : "Add your first book to start tracking progress.";
   const storySoFar = hasCurrentBook
-    ? effectiveCurrentBook?.storySoFar?.trim() || "No chapter summary yet. Write a note to build your story summary."
-    : "Your chapter summaries will appear here after you add a book and write your first note.";
+    ? effectiveCurrentBook?.storySoFar?.trim() || "No reading summary yet. Write a note to build your story summary."
+    : "Your reading summaries will appear here after you add a book and write your first note.";
   const baseCharacters =
     hasCurrentBook && Array.isArray(effectiveCurrentBook?.topCharacters) && effectiveCurrentBook.topCharacters.length > 0
       ? effectiveCurrentBook.topCharacters.slice(0, 4)
@@ -138,7 +144,10 @@ export default async function HomePage({ searchParams }) {
   const topCharacters = baseCharacters.slice(0, 4);
   const characterRows = pairCharacters(topCharacters);
   const coverSrc = effectiveCurrentBook?.cover_url || "";
-  const canShowProgress = hasCurrentBook && totalChapters && lastChapter;
+  const canShowProgress =
+    hasCurrentBook &&
+    Number.isFinite(lastProgressValue) &&
+    (trackingMode === "percent" || Number.isFinite(totalProgressValue));
   const primaryActionHref = hasCurrentBook ? `/books/${encodeURIComponent(effectiveCurrentBook.id)}` : "/books/new";
   const primaryActionLabel = hasCurrentBook ? "Explore book" : "Add book";
 
@@ -211,8 +220,8 @@ export default async function HomePage({ searchParams }) {
                 <ActionLink
                   href={switchHref}
                   icon={<SwapVertIcon className="h-6 w-6" />}
-                  label={effectiveBooks.length > 1 ? "Switch book" : "Library"}
-                  ariaLabel={effectiveBooks.length > 1 ? "Switch book" : "Library"}
+                  label="Switch book"
+                  ariaLabel="Switch book"
                 />
               </div>
             </div>
@@ -240,7 +249,9 @@ export default async function HomePage({ searchParams }) {
                   The story so far
                 </h2>
                 <p className="type-caption text-[#A19F99]">
-                  {lastChapter ? `Last chapter read: Chapter ${lastChapter}` : "No chapters logged yet"}
+                  {lastProgressValue
+                    ? getProgressLastReadText(trackingMode, lastProgressValue)
+                    : "No reading progress logged yet"}
                 </p>
                 <p
                   className="type-body pt-1 text-[#2A2A2A] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:5] overflow-hidden"
@@ -263,8 +274,8 @@ export default async function HomePage({ searchParams }) {
               <div className="mt-4 rounded-[8px] bg-[#F0EEE5] px-4 pb-6 pt-4">
                 <p className="type-body text-[#2A2A2A]">
                   {canShowProgress
-                    ? `On chapter ${lastChapter} of ${totalChapters}`
-                    : "Progress will appear after you log chapter notes."}
+                    ? getProgressProgressText(trackingMode, lastProgressValue, totalProgressValue)
+                    : getProgressEmptyText(trackingMode)}
                 </p>
                 <div className="mt-2 flex items-end gap-4">
                   <div className="h-4 flex-1 overflow-hidden rounded-[2px] bg-[#C0C0BE]">
@@ -353,7 +364,7 @@ export default async function HomePage({ searchParams }) {
                   Progress
                 </h2>
                 <p className="type-body text-[#9C9A95]">
-                  Log your first reading session to begin tracking chapters and momentum.
+                  Log your first reading session to begin tracking progress and momentum.
                 </p>
               </div>
             </section>

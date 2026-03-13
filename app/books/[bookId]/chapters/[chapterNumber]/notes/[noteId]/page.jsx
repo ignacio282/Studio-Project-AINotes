@@ -5,6 +5,7 @@ import NoteSummaryView from "@/components/NoteSummaryView";
 import BackArrowIcon from "@/components/BackArrowIcon";
 import QaLoadingPage from "@/components/qa/QaLoadingPage";
 import { resolveQaState } from "@/lib/qa/state";
+import { formatProgressLabel, normalizeTrackingMode } from "@/lib/books/progress";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +39,14 @@ export default async function NoteDetailPage({ params, searchParams }) {
     .select("id,book_id,chapter_number,content,ai_summary,created_at")
     .eq("id", noteId)
     .single();
+  const { data: book } = await supabase
+    .from("books")
+    .select("tracking_mode")
+    .eq("id", bookId)
+    .single();
 
   const note = qaState === "empty" ? null : error ? null : data;
+  const trackingMode = normalizeTrackingMode(book?.tracking_mode);
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl space-y-6 bg-[var(--color-page)] px-6 py-8 text-[var(--color-text-main)]">
@@ -55,7 +62,9 @@ export default async function NoteDetailPage({ params, searchParams }) {
       </div>
 
       <header className="space-y-1">
-        <div className="caption">Chapter {chapterNumber}</div>
+        <div className="caption">
+          {formatProgressLabel(trackingMode, note?.chapter_number ?? chapterNumber)}
+        </div>
         <h1 className="type-h2">
           Note
         </h1>

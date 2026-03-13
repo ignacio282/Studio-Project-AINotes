@@ -23,7 +23,7 @@ export default async function BookAssistantPage({ params, searchParams }) {
   }
   const { data: book } = await supabase
     .from("books")
-    .select("id,title,author")
+    .select("id,title,author,tracking_mode")
     .eq("id", bookId)
     .single();
 
@@ -42,7 +42,12 @@ export default async function BookAssistantPage({ params, searchParams }) {
       </header>
 
       <main className="assistant-body">
-        <BookAssistantChat bookId={bookId} bookTitle={book?.title || "this book"} qaState={qaState} />
+        <BookAssistantChat
+          bookId={bookId}
+          bookTitle={book?.title || "this book"}
+          trackingMode={book?.tracking_mode || "chapter"}
+          qaState={qaState}
+        />
       </main>
     </div>
   );

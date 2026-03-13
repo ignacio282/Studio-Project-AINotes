@@ -11,6 +11,7 @@ function BookJournalingPageContent({ params }) {
   const chapterParam = searchParams?.get("chapter");
   const chapterNumber = chapterParam ? Number(chapterParam) : undefined;
   const bookTitleParam = searchParams?.get("bookTitle") || undefined;
+  const trackingModeParam = searchParams?.get("trackingMode") || undefined;
   const chapterTitleParam =
     searchParams?.get("chapterTitle") ||
     (typeof chapterNumber === "number" && Number.isFinite(chapterNumber) && chapterNumber > 0
@@ -35,6 +36,7 @@ function BookJournalingPageContent({ params }) {
     <Journaling
       initialBookId={bookId}
       initialBookTitle={bookTitleParam}
+      initialTrackingMode={trackingModeParam}
       initialChapterNumber={normalizedChapterNumber}
       initialChapterTitle={chapterTitleParam}
     />
