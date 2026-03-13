@@ -5,7 +5,7 @@ export default function HomeLoading() {
         <div className="h-10 w-60 rounded-md bg-[var(--color-surface)]/90" />
       </section>
 
-      <main className="-mt-36 mx-auto max-w-2xl space-y-7 px-6 pb-44">
+      <main className="-mt-36 mx-auto w-full sm:max-w-screen-sm space-y-7 px-6 pb-44">
         <div className="h-[340px] rounded-3xl bg-[var(--color-surface)]" />
         <div className="h-7 w-52 rounded bg-[var(--color-surface)]" />
         <div className="h-28 rounded bg-[var(--color-surface)]" />

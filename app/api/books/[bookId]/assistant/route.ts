@@ -2,6 +2,12 @@ import OpenAI from "openai";
 import { NextRequest } from "next/server";
 import { requireUser } from "@/lib/supabase/require-user";
 import { getAiConfig } from "@/lib/ai/client";
+import {
+  formatProgressLabel,
+  getProgressUnit,
+  getProgressUnitPlural,
+  normalizeTrackingMode,
+} from "@/lib/books/progress";
 
 export const runtime = "nodejs";
 
@@ -265,16 +271,17 @@ function buildCharacterPromptContext(
   name: string,
   entry: CharacterIndexEntry,
   rowsByChapter: Map<number, MemoryRow>,
+  trackingMode: string,
 ): string {
   const range =
     entry.first === entry.last
-      ? `First mentioned in chapter ${entry.first}.`
-      : `First mentioned in chapter ${entry.first}, latest mention in chapter ${entry.last}.`;
+      ? `First mentioned at ${formatProgressLabel(trackingMode, entry.first)}.`
+      : `First mentioned at ${formatProgressLabel(trackingMode, entry.first)}, latest mention at ${formatProgressLabel(trackingMode, entry.last)}.`;
   const detailLine =
     entry.mentions > 1
       ? `You have mentioned ${name} a few times, but the notes still do not say much about them.`
       : `You have only mentioned ${name} once so far.`;
-  const tipLine = `Tip: You could revisit chapter ${entry.first} to learn more about who ${name} is.`;
+  const tipLine = `Tip: You could revisit ${formatProgressLabel(trackingMode, entry.first)} to learn more about who ${name} is.`;
   const lastRow = rowsByChapter.get(entry.last);
   if (!lastRow) {
     return [range, detailLine, tipLine, "Try noting things like:"].join(" ");
@@ -401,22 +408,24 @@ function selectRelevantCharacters(index: Map<string, CharacterIndexEntry>, token
     .slice(0, 6);
 }
 
-function formatCharacterIndex(entries: CharacterIndexEntry[]): string {
+function formatCharacterIndex(entries: CharacterIndexEntry[], trackingMode: string): string {
   if (entries.length === 0) return "None";
   return entries
     .map((entry) => {
       const chapters = formatChapterList(Array.from(entry.chapters));
-      return `- ${entry.name}: chapters ${chapters} (first: ${entry.first}, last: ${entry.last}) details: summary ${entry.summaryMentions}, relationships ${entry.relationshipMentions}, reflections ${entry.reflectionMentions}, extras ${entry.extraMentions}`;
+      return `- ${entry.name}: ${getProgressUnitPlural(trackingMode)} ${chapters} (first: ${formatProgressLabel(trackingMode, entry.first)}, last: ${formatProgressLabel(trackingMode, entry.last)}) details: summary ${entry.summaryMentions}, relationships ${entry.relationshipMentions}, reflections ${entry.reflectionMentions}, extras ${entry.extraMentions}`;
     })
     .join("\n");
 }
 
-function formatRelationshipIndex(index: Map<string, RelationshipIndexEntry>): string {
+function formatRelationshipIndex(index: Map<string, RelationshipIndexEntry>, trackingMode: string): string {
   const entries = Array.from(index.values())
     .sort((a, b) => b.chapter - a.chapter)
     .slice(0, 6);
   if (entries.length === 0) return "None";
-  return entries.map((entry) => `- ${entry.label} (latest: chapter ${entry.chapter})`).join("\n");
+  return entries
+    .map((entry) => `- ${entry.label} (latest: ${formatProgressLabel(trackingMode, entry.chapter)})`)
+    .join("\n");
 }
 
 function extractTokens(question: string): string[] {
@@ -460,9 +469,10 @@ function mergeMemoryRows(base: MemoryRow[], extra: MemoryRow[], limit: number): 
     .slice(-limit);
 }
 
-function formatMemoryBlock(row: MemoryRow): string {
+function formatMemoryBlock(row: MemoryRow, trackingMode: string): string {
   const detail = formatSummaryForPrompt(row.summary);
-  return detail ? `Chapter ${row.chapter_number}:\n${detail}` : `Chapter ${row.chapter_number}: (no structured details yet)`;
+  const label = formatProgressLabel(trackingMode, row.chapter_number);
+  return detail ? `${label}:\n${detail}` : `${label}: (no structured details yet)`;
 }
 
 function parseMaxChapter(raw: unknown): number | null {
@@ -475,6 +485,7 @@ function buildPromptActions(
   question: string,
   relevantCharacters: CharacterIndexEntry[],
   rowsByChapter: Map<number, MemoryRow>,
+  trackingMode: string,
 ): AssistantAction[] {
   const tokens = extractTokens(question);
   const mentioned = relevantCharacters.filter((entry) => {
@@ -490,7 +501,7 @@ function buildPromptActions(
     if (!isThin) {
       return;
     }
-    const context = buildCharacterPromptContext(entry.name, entry, rowsByChapter);
+    const context = buildCharacterPromptContext(entry.name, entry, rowsByChapter, trackingMode);
     actions.push({
       id: "prompt-note",
       label: `Write more about ${entry.name} ->`,
@@ -531,6 +542,13 @@ export async function POST(
     if (!user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
+    const { data: book } = await supabase
+      .from("books")
+      .select("tracking_mode")
+      .eq("id", bookId)
+      .single();
+    const trackingMode = normalizeTrackingMode(book?.tracking_mode);
+    const progressUnit = getProgressUnit(trackingMode);
     const explicitMax = parseMaxChapter(body.maxChapter);
 
     let maxChapter = explicitMax;
@@ -616,10 +634,10 @@ export async function POST(
 
     const relevant = selectRelevantMemory(memoryRows, tokens);
     const mergedMemory = mergeMemoryRows(relevant, ensured, 8);
-    const memoryBlocks = mergedMemory.map(formatMemoryBlock).join("\n\n");
-    const characterIndexBlock = formatCharacterIndex(relevantCharacters);
-    const relationshipIndexBlock = formatRelationshipIndex(chapterIndex.relationships);
-    const actions = buildPromptActions(question, relevantCharacters, rowsByChapter);
+    const memoryBlocks = mergedMemory.map((row) => formatMemoryBlock(row, trackingMode)).join("\n\n");
+    const characterIndexBlock = formatCharacterIndex(relevantCharacters, trackingMode);
+    const relationshipIndexBlock = formatRelationshipIndex(chapterIndex.relationships, trackingMode);
+    const actions = buildPromptActions(question, relevantCharacters, rowsByChapter, trackingMode);
     const sourceChapters = mergedMemory.map((row) => row.chapter_number);
 
     const systemPrompt = `
@@ -627,13 +645,13 @@ You are the reader's chronicler inside a reading companion app. Speak with warmt
 
 Rules:
 - Use only the provided memory; do not invent or assume details.
-- Do not spoil beyond the stated chapter limit.
+- Do not spoil beyond the stated progress limit.
 - Do not quote the notes verbatim; paraphrase instead.
 - Be conversational and logical, with a gentle narrative voice.
 - Keep the summary to 1-2 short paragraphs.
 - If the notes do not contain the answer, say so plainly and invite the reader to add it.
-- When it helps, mention the knowledge cutoff as "up through chapter X".
-- If the reader asks about a first appearance, use the chapter index to cite the earliest noted chapter, and admit if the introduction is not recorded.
+- When it helps, mention the knowledge cutoff as "up through ${formatProgressLabel(trackingMode, maxChapter)}".
+- If the reader asks about a first appearance, use the progress index to cite the earliest noted ${progressUnit}, and admit if the introduction is not recorded.
 - If detail signals are low for a character in question, say the notes are thin and suggest revisiting the first mention.
 
 Output format (JSON only):
@@ -645,18 +663,18 @@ Output format (JSON only):
 `.trim();
 
     const userPrompt = `
-Knowledge cutoff: chapter ${maxChapter}.
+Knowledge cutoff: ${formatProgressLabel(trackingMode, maxChapter)}.
 
 Reader question:
 ${question}
 
-Character mentions by chapter (derived from notes up to this point):
+Character mentions by ${progressUnit} (derived from notes up to this point):
 ${characterIndexBlock}
 
 Relationships observed (latest note where seen):
 ${relationshipIndexBlock}
 
-Relevant chapter memory:
+Relevant ${progressUnit} memory:
 ${memoryBlocks || "None available yet."}
 
 Reply now.

@@ -161,7 +161,7 @@ export default function AppBottomNav({
           <motion.div className="fixed inset-0 z-50 flex items-end justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <button type="button" className="absolute inset-0 bg-black/35" onClick={closeSheet} aria-label="Close actions" />
             <motion.div
-              className="relative z-10 w-full max-w-[390px] overflow-hidden rounded-t-[32px] bg-[#F7F6F3]"
+              className="relative z-10 w-full max-w-screen-sm overflow-hidden rounded-t-[32px] bg-[#F7F6F3]"
               initial={{ y: 360 }}
               animate={{ y: 0 }}
               exit={{ y: 360 }}

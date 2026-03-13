@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+function buildLoginRedirect(request: NextRequest, path: string) {
+  const redirect = new URL("/login", request.url);
+  redirect.searchParams.set("next", path);
+  return NextResponse.redirect(redirect);
+}
+
 export async function middleware(request: NextRequest) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -56,11 +62,26 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const { data } = await supabase.auth.getUser();
-  if (!data?.user) {
-    const redirect = new URL("/login", request.url);
-    redirect.searchParams.set("next", path);
-    return NextResponse.redirect(redirect);
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data?.user) {
+      return buildLoginRedirect(request, path);
+    }
+  } catch (error) {
+    // Reset broken Supabase session cookies so stale local auth state does not loop.
+    for (const cookie of request.cookies.getAll()) {
+      if (!cookie.name.startsWith("sb-")) continue;
+      response.cookies.set({
+        name: cookie.name,
+        value: "",
+        path: "/",
+        maxAge: 0,
+        sameSite: "lax",
+      });
+    }
+
+    console.error("Middleware auth lookup failed", error);
+    return buildLoginRedirect(request, path);
   }
 
   const { count, error: bookCountError } = await supabase

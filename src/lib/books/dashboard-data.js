@@ -1,3 +1,9 @@
+import {
+  formatProgressLabel,
+  getProgressTotalValue,
+  normalizeTrackingMode,
+} from "@/lib/books/progress";
+
 function toArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -49,10 +55,55 @@ function getDaysAgoLabel(fromIso) {
   return `Last reading session ${days} days ago.`;
 }
 
-function buildBookStats(books, notes, characters) {
+function getProgressValue(note) {
+  const value = Number(note?.chapter_number);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function compareCreatedAtDesc(a, b) {
+  return String(b?.created_at || "").localeCompare(String(a?.created_at || ""));
+}
+
+function getFurthestProgressNote(notes) {
+  return toArray(notes).reduce((best, note) => {
+    const currentValue = getProgressValue(note);
+    if (!Number.isFinite(currentValue)) {
+      return best;
+    }
+
+    if (!best) {
+      return note;
+    }
+
+    const bestValue = getProgressValue(best);
+    if (!Number.isFinite(bestValue) || currentValue > bestValue) {
+      return note;
+    }
+
+    if (currentValue === bestValue && compareCreatedAtDesc(note, best) < 0) {
+      return note;
+    }
+
+    return best;
+  }, null);
+}
+
+function buildMemoryLookup(rows) {
+  const lookup = new Map();
+  toArray(rows).forEach((row) => {
+    if (!row?.book_id) return;
+    const progressValue = Number(row?.chapter_number);
+    if (!Number.isFinite(progressValue) || progressValue <= 0) return;
+    lookup.set(`${row.book_id}::${progressValue}`, row);
+  });
+  return lookup;
+}
+
+function buildBookStats(books, notes, memoryRows, characters) {
   const notesByBook = new Map();
   const charRowsByBook = new Map();
   const normalizedCharacterLookup = new Map();
+  const memoryLookup = buildMemoryLookup(memoryRows);
 
   toArray(characters).forEach((row) => {
     if (!row?.book_id) return;
@@ -74,19 +125,19 @@ function buildBookStats(books, notes, characters) {
   });
 
   return toArray(books).map((book) => {
-    const list = toArray(notesByBook.get(book.id)).sort((a, b) =>
-      String(b.created_at || "").localeCompare(String(a.created_at || "")),
-    );
+    const list = toArray(notesByBook.get(book.id)).sort(compareCreatedAtDesc);
     const noteCount = list.length;
     const latestNote = list[0] ?? null;
+    const furthestProgressNote = getFurthestProgressNote(list);
     const latestNoteAt = latestNote?.created_at ?? null;
     const earliestNote = list.length > 0 ? list[list.length - 1] : null;
     const firstNoteAt = earliestNote?.created_at ?? null;
-    const lastChapter =
-      latestNote && Number.isFinite(Number(latestNote.chapter_number))
-        ? Number(latestNote.chapter_number)
-        : null;
-    const storySoFar = summarizeFromAi(latestNote?.ai_summary);
+    const trackingMode = normalizeTrackingMode(book.tracking_mode);
+    const lastProgressValue = getProgressValue(furthestProgressNote);
+    const totalProgressValue = getProgressTotalValue(trackingMode, book);
+    const memoryKey = lastProgressValue ? `${book.id}::${lastProgressValue}` : "";
+    const furthestMemory = memoryKey ? memoryLookup.get(memoryKey) : null;
+    const storySoFar = summarizeFromAi(furthestMemory?.summary ?? furthestProgressNote?.ai_summary);
 
     const mentionCounts = new Map();
     const mentionLabels = new Map();
@@ -127,7 +178,11 @@ function buildBookStats(books, notes, characters) {
       noteCount,
       firstNoteAt,
       latestNoteAt,
-      lastChapter,
+      trackingMode,
+      lastChapter: lastProgressValue,
+      lastProgressValue,
+      lastProgressLabel: formatProgressLabel(trackingMode, lastProgressValue),
+      totalProgressValue,
       storySoFar,
       daysAgoLabel: getDaysAgoLabel(latestNoteAt),
       topCharacters,
@@ -135,15 +190,23 @@ function buildBookStats(books, notes, characters) {
         Number.isFinite(Number(book.total_chapters)) && Number(book.total_chapters) > 0
           ? Number(book.total_chapters)
           : null,
+      totalPages:
+        Number.isFinite(Number(book.total_pages)) && Number(book.total_pages) > 0
+          ? Number(book.total_pages)
+          : null,
       progressPercent:
-        Number.isFinite(Number(lastChapter)) &&
-        Number.isFinite(Number(book.total_chapters)) &&
-        Number(book.total_chapters) > 0
+        Number.isFinite(Number(lastProgressValue)) &&
+        (
+          trackingMode === "percent" ||
+          (Number.isFinite(Number(totalProgressValue)) && Number(totalProgressValue) > 0)
+        )
           ? Math.max(
               0,
               Math.min(
                 100,
-                Math.round((Number(lastChapter) * 100) / Number(book.total_chapters)),
+                trackingMode === "percent"
+                  ? Math.round(Number(lastProgressValue))
+                  : Math.round((Number(lastProgressValue) * 100) / Number(totalProgressValue)),
               ),
             )
           : 0,
@@ -154,7 +217,7 @@ function buildBookStats(books, notes, characters) {
 export async function fetchBooksDashboardData(supabase, userId) {
   const booksQuery = await supabase
     .from("books")
-    .select("id,title,author,cover_url,status,total_chapters,created_at,updated_at")
+    .select("id,title,author,cover_url,status,total_chapters,total_pages,tracking_mode,created_at,updated_at")
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
   if (booksQuery.error) throw booksQuery.error;
@@ -165,7 +228,7 @@ export async function fetchBooksDashboardData(supabase, userId) {
   }
 
   const ids = books.map((book) => book.id);
-  const [notesQuery, charactersQuery] = await Promise.all([
+  const [notesQuery, memoryQuery, charactersQuery] = await Promise.all([
     supabase
       .from("notes")
       .select("id,book_id,chapter_number,ai_summary,created_at")
@@ -173,15 +236,21 @@ export async function fetchBooksDashboardData(supabase, userId) {
       .in("book_id", ids)
       .order("created_at", { ascending: false }),
     supabase
+      .from("book_chapter_memory")
+      .select("book_id,chapter_number,summary")
+      .in("book_id", ids),
+    supabase
       .from("characters")
       .select("book_id,name,slug,role,short_bio")
       .eq("user_id", userId)
       .in("book_id", ids),
   ]);
   if (notesQuery.error) throw notesQuery.error;
+  const memoryRows = memoryQuery.data ?? [];
+  if (memoryQuery.error) throw memoryQuery.error;
   if (charactersQuery.error) throw charactersQuery.error;
 
-  const booksWithStats = buildBookStats(books, notesQuery.data, charactersQuery.data);
+  const booksWithStats = buildBookStats(books, notesQuery.data, memoryRows, charactersQuery.data);
 
   const reading = booksWithStats
     .filter((book) => book.status === "reading")

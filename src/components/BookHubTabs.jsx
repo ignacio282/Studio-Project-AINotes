@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import KebabIcon from "@/components/KebabIcon";
 import ActionBottomSheet from "@/components/ui/ActionBottomSheet";
+import { formatProgressLabel, normalizeTrackingMode } from "@/lib/books/progress";
 
 const TABS = [
   { id: "notes", label: "Notes" },
@@ -40,6 +41,7 @@ function CloseIcon({ className }) {
 
 export default function BookHubTabs({
   bookId,
+  trackingMode,
   notes,
   filtersDisabled,
   characters,
@@ -52,6 +54,7 @@ export default function BookHubTabs({
   const [notesState, setNotesState] = useState(Array.isArray(notes) ? notes : []);
   const [activeNoteActionId, setActiveNoteActionId] = useState("");
   const [isDeletingNote, setIsDeletingNote] = useState(false);
+  const normalizedTrackingMode = normalizeTrackingMode(trackingMode);
   const effectiveNoteCount = notesState.length;
   const filtersAreDisabled = effectiveNoteCount === 0;
 
@@ -179,7 +182,9 @@ export default function BookHubTabs({
                         <div className="type-title">
                           {new Date(n.created_at).toLocaleString()}
                         </div>
-                        <div className="caption">Chapter {n.chapter_number}</div>
+                        <div className="caption">
+                          {formatProgressLabel(normalizedTrackingMode, n.chapter_number)}
+                        </div>
                         <div className="type-body mt-2 text-[var(--color-text-main)]">
                           {n.preview ? (
                             n.preview
