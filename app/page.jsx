@@ -23,6 +23,9 @@ const REFLECTION_ENDPOINT =
 const REFLECTION_CHANGE_ENDPOINT =
   process.env.NEXT_PUBLIC_REFLECTION_CHANGE_ENDPOINT || "/api/reflection-change";
 
+const JOURNAL_DRAFT_STORAGE_PREFIX = "rc.journalDraft.v1";
+const JOURNAL_DRAFT_MAX_AGE_MS = 1000 * 60 * 60 * 12;
+
 // Initial assistant greeting shown in the chat transcript
 const INTRO_MESSAGE = `Hey! I'm all ears for what you just read. Drop in anything that made you pause - a character choice, a setting detail, a twist, even a feeling.
 Things I love hearing about:
@@ -123,6 +126,245 @@ function safeUuid() {
     return crypto.randomUUID();
   }
   return Math.random().toString(36).slice(2, 11);
+}
+
+function createIntroMessage(includeStartAction = true) {
+  return {
+    id: safeUuid(),
+    role: "ai",
+    content: INTRO_MESSAGE,
+    createdAt: new Date().toISOString(),
+    actions: includeStartAction ? [{ id: "start", label: "Start" }] : [],
+  };
+}
+
+function normalizeDraftKeyPart(value, fallback = "session") {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || fallback;
+}
+
+function getStoredCurrentBookId() {
+  try {
+    return localStorage.getItem("rc.currentBookId") || "";
+  } catch {
+    return "";
+  }
+}
+
+function buildJournalDraftStorageKey({
+  bookId,
+  bookTitle,
+  trackingMode,
+  chapterNumber,
+  chapterTitle,
+}) {
+  const bookScope = normalizeDraftKeyPart(
+    typeof bookId === "string" && bookId.trim() ? bookId : bookTitle,
+    "book",
+  );
+  const progressScope =
+    typeof chapterNumber === "number" && Number.isFinite(chapterNumber) && chapterNumber > 0
+      ? String(chapterNumber)
+      : normalizeDraftKeyPart(chapterTitle, "reading-session");
+
+  return `${JOURNAL_DRAFT_STORAGE_PREFIX}:${bookScope}:${normalizeDraftKeyPart(trackingMode, "chapter")}:${progressScope}`;
+}
+
+function normalizeDraftNotes(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+      const content = typeof entry.content === "string" ? entry.content.trim() : "";
+      if (!content) {
+        return null;
+      }
+      return {
+        id: typeof entry.id === "string" && entry.id ? entry.id : safeUuid(),
+        content,
+        createdAt:
+          typeof entry.createdAt === "string" && entry.createdAt
+            ? entry.createdAt
+            : new Date().toISOString(),
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeDraftMessages(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+      const content = typeof entry.content === "string" ? entry.content : "";
+      if (!content.trim()) {
+        return null;
+      }
+      const actions = Array.isArray(entry.actions)
+        ? entry.actions
+            .filter((action) => action && typeof action === "object" && typeof action.label === "string")
+            .map((action) => ({ ...action }))
+        : [];
+      return {
+        id: typeof entry.id === "string" && entry.id ? entry.id : safeUuid(),
+        role: entry.role === "user" ? "user" : "ai",
+        content,
+        createdAt:
+          typeof entry.createdAt === "string" && entry.createdAt
+            ? entry.createdAt
+            : new Date().toISOString(),
+        ...(actions.length > 0 ? { actions } : {}),
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildFallbackDraftMessages(notes, isComposerLocked) {
+  const intro = createIntroMessage(isComposerLocked);
+  if (!Array.isArray(notes) || notes.length === 0) {
+    return [intro];
+  }
+
+  return [
+    intro,
+    ...notes.map((note) => ({
+      id: note.id,
+      role: "user",
+      content: note.content,
+      createdAt: note.createdAt,
+    })),
+  ];
+}
+
+function buildSessionNoteContent(notes) {
+  if (!Array.isArray(notes)) {
+    return "";
+  }
+
+  return notes
+    .map((note) => (typeof note?.content === "string" ? note.content.trim() : ""))
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function readJournalDraft(storageKey, fallbackSession) {
+  if (!storageKey) {
+    return null;
+  }
+
+  try {
+    const raw = sessionStorage.getItem(storageKey);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    const savedAt = typeof parsed?.savedAt === "number" ? parsed.savedAt : 0;
+    if (!savedAt || Date.now() - savedAt > JOURNAL_DRAFT_MAX_AGE_MS) {
+      sessionStorage.removeItem(storageKey);
+      return null;
+    }
+
+    const draftSession = parsed?.session && typeof parsed.session === "object" ? parsed.session : {};
+    const notes = normalizeDraftNotes(draftSession.notes);
+    const flowStep = parsed?.flowStep === FLOW_STATES.SUMMARY ? FLOW_STATES.SUMMARY : FLOW_STATES.JOURNALING;
+    const isComposerLocked =
+      typeof parsed?.isComposerLocked === "boolean"
+        ? parsed.isComposerLocked
+        : notes.length === 0;
+    const messages = normalizeDraftMessages(parsed?.messages);
+    const inputValue = typeof parsed?.inputValue === "string" ? parsed.inputValue : "";
+    const hasMeaningfulDraft =
+      notes.length > 0 ||
+      inputValue.trim().length > 0 ||
+      messages.some((message) => message.role === "user");
+
+    if (!hasMeaningfulDraft) {
+      sessionStorage.removeItem(storageKey);
+      return null;
+    }
+
+    return {
+      session: {
+        ...fallbackSession,
+        bookId:
+          typeof draftSession.bookId === "string" && draftSession.bookId.trim()
+            ? draftSession.bookId.trim()
+            : fallbackSession.bookId,
+        bookTitle:
+          typeof draftSession.bookTitle === "string" && draftSession.bookTitle.trim()
+            ? draftSession.bookTitle.trim()
+            : fallbackSession.bookTitle,
+        trackingMode:
+          normalizeTrackingMode(draftSession.trackingMode) || fallbackSession.trackingMode,
+        chapterNumber:
+          typeof draftSession.chapterNumber === "number" && Number.isFinite(draftSession.chapterNumber)
+            ? draftSession.chapterNumber
+            : fallbackSession.chapterNumber,
+        chapterTitle:
+          typeof draftSession.chapterTitle === "string" && draftSession.chapterTitle.trim()
+            ? draftSession.chapterTitle.trim()
+            : fallbackSession.chapterTitle,
+        notes,
+        summary: normalizeSummary(draftSession.summary),
+      },
+      messages: messages.length > 0 ? messages : buildFallbackDraftMessages(notes, isComposerLocked),
+      inputValue,
+      isComposerLocked,
+      showSummary: flowStep === FLOW_STATES.JOURNALING ? Boolean(parsed?.showSummary) : false,
+      flowStep,
+      sessionCompletedAt:
+        typeof parsed?.sessionCompletedAt === "string" && parsed.sessionCompletedAt
+          ? parsed.sessionCompletedAt
+          : null,
+      sessionNoteDbId:
+        typeof parsed?.sessionNoteDbId === "string" && parsed.sessionNoteDbId.trim()
+          ? parsed.sessionNoteDbId.trim()
+          : null,
+      wasRestored: true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeJournalDraft(storageKey, payload) {
+  if (!storageKey) {
+    return;
+  }
+  try {
+    sessionStorage.setItem(storageKey, JSON.stringify(payload));
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function clearJournalDraft(storageKey) {
+  if (!storageKey) {
+    return;
+  }
+  try {
+    sessionStorage.removeItem(storageKey);
+  } catch {
+    // ignore storage failures
+  }
 }
 
 function toStringArray(value) {
@@ -1821,22 +2063,11 @@ export default function JournalingPage(props) {
       ? initialChapterNumberRaw
       : undefined;
   const router = useRouter();
-
-  // Local state: message history, structured summary, and UI flags
-  const [messages, setMessages] = useState(() => [
-    {
-      id: safeUuid(),
-      role: "ai",
-      content: INTRO_MESSAGE,
-      createdAt: new Date().toISOString(),
-      actions: [{ id: "start", label: "Start" }],
-    },
-  ]);
-  const [inputValue, setInputValue] = useState("");
-  const [isComposerLocked, setIsComposerLocked] = useState(true);
-  const [session, setSession] = useState(() => ({
+  const fallbackBookId =
+    typeof initialBookId === "string" && initialBookId ? initialBookId : getStoredCurrentBookId();
+  const initialSessionState = {
     ...sessionTemplate,
-    bookId: typeof initialBookId === "string" && initialBookId ? initialBookId : sessionTemplate.bookId,
+    bookId: fallbackBookId || sessionTemplate.bookId,
     bookTitle:
       typeof initialBookTitle === "string" && initialBookTitle ? initialBookTitle : sessionTemplate.bookTitle,
     trackingMode: initialTrackingMode || sessionTemplate.trackingMode,
@@ -1847,8 +2078,30 @@ export default function JournalingPage(props) {
         : sessionTemplate.chapterTitle,
     notes: [...sessionTemplate.notes],
     summary: createEmptySummary(),
-  }));
-  const [showSummary, setShowSummary] = useState(false);
+  };
+  const draftStorageKeyRef = useRef("");
+  const initialDraftRef = useRef(null);
+
+  if (!draftStorageKeyRef.current) {
+    draftStorageKeyRef.current = buildJournalDraftStorageKey({
+      bookId: fallbackBookId,
+      bookTitle: initialSessionState.bookTitle,
+      trackingMode: initialSessionState.trackingMode,
+      chapterNumber: initialSessionState.chapterNumber,
+      chapterTitle: initialSessionState.chapterTitle,
+    });
+    initialDraftRef.current = readJournalDraft(draftStorageKeyRef.current, initialSessionState);
+  }
+
+  const draftStorageKey = draftStorageKeyRef.current;
+  const initialDraft = initialDraftRef.current;
+
+  // Local state: message history, structured summary, and UI flags
+  const [messages, setMessages] = useState(() => initialDraft?.messages ?? [createIntroMessage()]);
+  const [inputValue, setInputValue] = useState(() => initialDraft?.inputValue ?? "");
+  const [isComposerLocked, setIsComposerLocked] = useState(() => initialDraft?.isComposerLocked ?? true);
+  const [session, setSession] = useState(() => initialDraft?.session ?? initialSessionState);
+  const [showSummary, setShowSummary] = useState(() => initialDraft?.showSummary ?? false);
   const [isUpdatingSummary, setIsUpdatingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState(null);
   const [summaryHighlights, setSummaryHighlights] = useState({});
@@ -1861,8 +2114,9 @@ export default function JournalingPage(props) {
   const [chapterPromptTarget, setChapterPromptTarget] = useState("summary");
   const [reflectionChangeSummary, setReflectionChangeSummary] = useState("");
   const [isReflectionChangeSummaryLoading, setIsReflectionChangeSummaryLoading] = useState(false);
-  const [flowStep, setFlowStep] = useState(FLOW_STATES.JOURNALING);
-  const [sessionCompletedAt, setSessionCompletedAt] = useState(null);
+  const [flowStep, setFlowStep] = useState(() => initialDraft?.flowStep ?? FLOW_STATES.JOURNALING);
+  const [sessionCompletedAt, setSessionCompletedAt] = useState(() => initialDraft?.sessionCompletedAt ?? null);
+  const [sessionNoteDbId, setSessionNoteDbId] = useState(() => initialDraft?.sessionNoteDbId ?? null);
   const [reflectionMessages, setReflectionMessages] = useState([]);
   const [reflectionInput, setReflectionInput] = useState("");
   const [isReflectionComposerLocked, setIsReflectionComposerLocked] = useState(false);
@@ -1880,8 +2134,8 @@ export default function JournalingPage(props) {
   const reflectionBaselineSummaryRef = useRef(null);
   const reflectionDiffRef = useRef({ added: {} });
   const reflectionChangeSummaryRequestRef = useRef(false);
-  const noteIdMapRef = useRef(new Map()); // localId -> dbId
-  const noteSummarySnapshotsRef = useRef(new Map()); // localId -> ai summary snapshot
+  const sessionNoteDbIdRef = useRef(sessionNoteDbId);
+  const latestPersistedSummaryRef = useRef(normalizeSummary(initialDraft?.session?.summary));
   const typoPromptSeenRef = useRef(new Set());
   const typoResolutionPendingRef = useRef(new Set());
   const [isCharacterSheetOpen, setIsCharacterSheetOpen] = useState(false);
@@ -1937,6 +2191,56 @@ export default function JournalingPage(props) {
   useEffect(() => {
     summaryRef.current = session.summary;
   }, [session.summary]);
+
+  useEffect(() => {
+    sessionNoteDbIdRef.current = sessionNoteDbId;
+  }, [sessionNoteDbId]);
+
+  useEffect(() => {
+    const hasDraftContent =
+      session.notes.length > 0 ||
+      inputValue.trim().length > 0 ||
+      messages.some((message) => message.role === "user");
+
+    if (!hasDraftContent || flowStep === FLOW_STATES.COMPLETE) {
+      clearJournalDraft(draftStorageKey);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      writeJournalDraft(draftStorageKey, {
+        savedAt: Date.now(),
+        session: {
+          bookId: session.bookId,
+          bookTitle: session.bookTitle,
+          trackingMode: session.trackingMode,
+          chapterNumber: session.chapterNumber,
+          chapterTitle: session.chapterTitle,
+          notes: session.notes,
+          summary: session.summary,
+        },
+        messages,
+        inputValue,
+        isComposerLocked,
+        showSummary,
+        flowStep: flowStep === FLOW_STATES.SUMMARY ? FLOW_STATES.SUMMARY : FLOW_STATES.JOURNALING,
+        sessionCompletedAt,
+        sessionNoteDbId,
+      });
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    draftStorageKey,
+    flowStep,
+    inputValue,
+    isComposerLocked,
+    messages,
+    session,
+    sessionCompletedAt,
+    sessionNoteDbId,
+    showSummary,
+  ]);
 
   useEffect(() => {
     reflectionContextRef.current = reflectionContext;
@@ -2171,7 +2475,7 @@ export default function JournalingPage(props) {
       aiControllerRef.current.abort();
     }
 
-    const { source = "journal", insights = [], noteLocalId } = options ?? {};
+    const { source = "journal", insights = [] } = options ?? {};
     const previousNormalized = normalizeSummary(previousSummary ?? createEmptySummary());
 
     const controller = new AbortController();
@@ -2209,9 +2513,7 @@ export default function JournalingPage(props) {
       const payload = await res.json();
       if (payload?.summary) {
         const normalizedSummary = normalizeSummary(payload.summary);
-        if (noteLocalId) {
-          noteSummarySnapshotsRef.current.set(noteLocalId, normalizedSummary);
-        }
+        latestPersistedSummaryRef.current = normalizedSummary;
         if (source === "reflection") {
           const diff = computeSummaryDiff(previousNormalized, normalizedSummary);
           applyReflectionDiff(diff.added);
@@ -2226,16 +2528,13 @@ export default function JournalingPage(props) {
         }));
         summaryRef.current = normalizedSummary;
 
-        // Persist AI summary snapshot to the just-saved note if available
-        try {
-          if (noteLocalId && noteIdMapRef.current instanceof Map) {
-            const dbId = noteIdMapRef.current.get(noteLocalId);
-            if (dbId) {
-              await patchNoteSummary(dbId, normalizedSummary);
-            }
+        const dbId = sessionNoteDbIdRef.current;
+        if (dbId) {
+          try {
+            await patchNoteSummary(dbId, normalizedSummary);
+          } catch {
+            // non-blocking
           }
-        } catch {
-          // non-blocking
         }
 
         try {
@@ -2261,12 +2560,14 @@ export default function JournalingPage(props) {
   };
 
   const persistNoteToDB = async (
-    localId,
-    content,
-    createdAt,
+    notes,
     options = {},
   ) => {
     try {
+      const noteContent = buildSessionNoteContent(notes);
+      if (!noteContent) {
+        return null;
+      }
       const chapterNumberOverride = Number(options?.chapterNumber);
       const chapterNumber =
         Number.isFinite(chapterNumberOverride) && chapterNumberOverride > 0
@@ -2284,23 +2585,49 @@ export default function JournalingPage(props) {
       if (!isUuid) {
         return null;
       }
+      const createdAt =
+        typeof notes?.[0]?.createdAt === "string" && notes[0].createdAt
+          ? notes[0].createdAt
+          : new Date().toISOString();
+      const existingDbId = sessionNoteDbIdRef.current;
+
+      if (existingDbId) {
+        const patchRes = await fetch(`/api/notes/${encodeURIComponent(existingDbId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: noteContent,
+            chapterNumber,
+          }),
+        });
+        if (patchRes.ok) {
+          const summarySnapshot = options?.summarySnapshot || latestPersistedSummaryRef.current;
+          if (summarySnapshot) {
+            await patchNoteSummary(existingDbId, summarySnapshot);
+          }
+          return { id: existingDbId, bookId };
+        }
+        setSessionNoteDbId(null);
+        sessionNoteDbIdRef.current = null;
+      }
+
       const res = await fetch("/api/notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookId,
           chapterNumber,
-          content,
+          content: noteContent,
           createdAt,
         }),
       });
       if (!res.ok) return null;
       const data = await res.json();
-      if (data && data.id && noteIdMapRef.current instanceof Map) {
-        noteIdMapRef.current.set(localId, data.id);
+      if (data?.id) {
+        setSessionNoteDbId(data.id);
+        sessionNoteDbIdRef.current = data.id;
       }
-      const summarySnapshot =
-        options?.summarySnapshot || noteSummarySnapshotsRef.current.get(localId);
+      const summarySnapshot = options?.summarySnapshot || latestPersistedSummaryRef.current;
       if (data?.id && summarySnapshot) {
         await patchNoteSummary(data.id, summarySnapshot);
       }
@@ -2312,15 +2639,12 @@ export default function JournalingPage(props) {
   };
 
   const savePendingSessionNotes = async (chapterNumber) => {
-    const unsavedNotes = session.notes.filter(
-      (note) => !noteIdMapRef.current.has(note.id),
-    );
     let bookId = session.bookId;
-
-    for (const note of unsavedNotes) {
-      const saved = await persistNoteToDB(note.id, note.content, note.createdAt, {
+    if (session.notes.length > 0) {
+      const saved = await persistNoteToDB(session.notes, {
         chapterNumber,
         bookId,
+        summarySnapshot: normalizeSummary(summaryRef.current),
       });
       if (saved?.bookId) {
         bookId = saved.bookId;
@@ -2592,9 +2916,11 @@ export default function JournalingPage(props) {
     }));
     // Persist immediately only when a chapter boundary is already known.
     if (getChapterNumberFromSession(session) > 0) {
-      void persistNoteToDB(userMessage.id, trimmed, createdAt);
+      void persistNoteToDB(nextNotes, {
+        summarySnapshot: normalizeSummary(summaryRef.current),
+      });
     }
-    void updateSummaryWithAI(trimmed, nextNotes, previousSummary, { noteLocalId: userMessage.id });
+    void updateSummaryWithAI(trimmed, nextNotes, previousSummary);
 
     setInputValue("");
   };
@@ -2870,6 +3196,8 @@ export default function JournalingPage(props) {
       return;
     }
 
+    clearJournalDraft(draftStorageKey);
+
     const bookId = session?.bookId;
     const isUuid =
       typeof bookId === "string" &&
@@ -2894,6 +3222,7 @@ export default function JournalingPage(props) {
     setIsFetchingReflectionQuestion(false);
     reflectionDiffRef.current = { added: {} };
     reflectionChangeSummaryRequestRef.current = false;
+    clearJournalDraft(draftStorageKey);
     setSummaryHighlights({});
     setReflectionChangeSummary("");
     setIsReflectionChangeSummaryLoading(false);
@@ -3535,6 +3864,11 @@ export default function JournalingPage(props) {
             {/* Error state when summary refresh fails */}
             {summaryError ? (
               <div className="type-caption text-red-500">{summaryError}</div>
+            ) : null}
+            {initialDraft?.wasRestored ? (
+              <div className="type-caption text-[var(--color-secondary)]">
+                Recovered your in-progress note after refresh. It will stay on this device until you finish the session.
+              </div>
             ) : null}
 
             {/* Message input and submit affordance */}
