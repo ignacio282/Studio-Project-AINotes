@@ -16,7 +16,7 @@ export function getAiConfig(useCase: AiUseCase): AiConfig {
   switch (useCase) {
     case "journal":
       return {
-        model: process.env.AI_MODEL_JOURNAL || "gpt-5-nano",
+        model: process.env.AI_MODEL_JOURNAL || "gpt-5-mini",
         maxOutputTokens: intFromEnv("AI_MAX_TOKENS_JOURNAL", 3000),
       };
     case "reflection":

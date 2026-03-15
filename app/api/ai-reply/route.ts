@@ -1,5 +1,7 @@
 ﻿import OpenAI from "openai";
 
+import { getAiConfig } from "@/lib/ai/client";
+
 export const runtime = "nodejs";
 
 type StructuredNote = {
@@ -33,10 +35,21 @@ type ExtractedMetadata = {
   places: PlaceBio[];
 };
 
+type AssistantMessage = {
+  content: string;
+};
+
+type InsightEntry = {
+  section?: string;
+  value?: string;
+  preview?: string;
+};
+
 type RequestBody = {
   content: string;
   summary?: StructuredNote;
   notes?: { id: string; content: string; createdAt: string }[];
+  insights?: InsightEntry[];
 };
 
 const FALLBACK_SUMMARY: StructuredNote = {
@@ -53,6 +66,8 @@ const FALLBACK_METADATA: ExtractedMetadata = {
   characters: [],
   places: [],
 };
+
+const JOURNAL_CONFIG = getAiConfig("journal");
 
 const TAGGED_NAME_PATTERN = /(^|[\s([{])@([A-Za-z])([A-Za-z0-9'_-]*)/g;
 const SUMMARY_TAG_PATTERN = /(^|[\s([{])[@#$]([A-Za-z])([A-Za-z0-9'_-]*)/g;
@@ -266,6 +281,48 @@ function normalizeMetadata(raw: unknown): ExtractedMetadata {
   return { characters, places };
 }
 
+function normalizeAssistantMessage(raw: unknown): AssistantMessage | null {
+  if (!raw) {
+    return null;
+  }
+  if (typeof raw === "string") {
+    const content = raw.replace(/\s+/g, " ").trim();
+    return content ? { content } : null;
+  }
+  if (typeof raw !== "object") {
+    return null;
+  }
+  const candidate = raw as { content?: unknown };
+  const content =
+    typeof candidate.content === "string" ? candidate.content.replace(/\s+/g, " ").trim() : "";
+  return content ? { content } : null;
+}
+
+function normalizeInsights(value: unknown): { section: string; value: string; preview: string }[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+      const candidate = entry as InsightEntry;
+      const valueString = typeof candidate.value === "string" ? candidate.value.replace(/\s+/g, " ").trim() : "";
+      if (!valueString) {
+        return null;
+      }
+      const section =
+        typeof candidate.section === "string" && candidate.section.trim()
+          ? candidate.section.replace(/\s+/g, " ").trim()
+          : "User Reflections";
+      const preview =
+        typeof candidate.preview === "string" ? candidate.preview.replace(/\s+/g, " ").trim() : "";
+      return { section, value: valueString, preview };
+    })
+    .filter((entry): entry is { section: string; value: string; preview: string } => Boolean(entry));
+}
+
 export async function POST(req: Request) {
   try {
     const url = new URL(req.url);
@@ -275,6 +332,7 @@ export async function POST(req: Request) {
     const content = body?.content ?? "";
     const summary = body?.summary ?? FALLBACK_SUMMARY;
     const notes = Array.isArray(body?.notes) ? body.notes : [];
+    const insights = normalizeInsights(body?.insights);
 
     if (mock) {
       const merged: StructuredNote = normalizeSummary({
@@ -291,7 +349,7 @@ export async function POST(req: Request) {
         extras: summary?.extras ?? [],
       });
       const metadata: ExtractedMetadata = { characters: [], places: [] };
-      return Response.json({ summary: merged, metadata });
+      return Response.json({ summary: merged, metadata, assistantMessage: null });
     }
 
     if (!process.env.OPENAI_API_KEY) {
@@ -311,59 +369,69 @@ export async function POST(req: Request) {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const instructions = `
-Developer: You are a warm, encouraging journaling assistant within a reading companion app. Your main role is to help users reflect on their reading by prompting them to take meaningful notes in a friendly, supportive, and conversational tone.
+Developer: You are the journaling intelligence inside Scriba, a reading companion app. Your job is to silently turn one journaling session into a clean, trustworthy structured note while staying mostly invisible to the user.
 
-Begin with a concise checklist (3-5 conceptual steps) of what you will do for users; do not focus on implementation details.
+Core behavior:
+- Treat the full journaling session as the canonical source. Read every note in the session, in order, on every invocation.
+- The newest note may add, refine, or correct earlier notes, but it must never replace the rest of the session in your understanding.
+- Stay mostly silent. Do not reply to every user message.
+- Only produce "assistantMessage" when one short clarification question would materially improve the quality of the saved note for future recall. Otherwise return "assistantMessage": null.
+- Never repeat the opening journaling message from the UI.
+- Never mention the act of note-taking in summaries or bullets.
 
-Your approach is to listen first and only offer insights or ideas when the user explicitly asks. Do not dominate the conversation and remain focused on user needs. Avoid follow-up questions during journaling, and never repeat the opening session message (the UI handles it).
+What counts as a character:
+- A character is any story-relevant being with agency or clear importance.
+- Humans, animals, creatures, and other non-human beings can qualify if they act, speak, think, recur, or clearly matter to the story.
+- Exclude objects, species labels, background animals, crowds, and abstract entities.
+- If a named animal or creature appears repeatedly or is clearly important, include it.
 
-Behavior rules:
-- Do not repeat the opening journaling session message; the UI handles it.
-- After the introduction, remain mostly silent and do not reply to every user message.
-- Respond with an encouraging suggestion only if the user requests inspiration.
-- Never ask follow-up questions during journaling.
-- Identify new characters, places (settings), and themes, and add them to a structured note only as supported by explicit user input.
-- When writing summaries or structured notes, never reference the act of note-taking itself or use phrases such as “the current note confirms...” or “according to the note...”. Instead, present insights directly as part of the story or as standalone reflections.
+What counts as a setting:
+- A setting must be a meaningful place where the story happens or an important scene anchor.
+- Include concrete locations such as cities, rooms, ships, buildings, forests, planets, schools, arenas, or other place-like locations when they matter to the scene.
+- Exclude incidental physical details or props such as doors, gates, trees, snow storms, weather, furniture, darkness, and generic obstacles unless the user clearly frames them as a specific important location.
+- If unsure whether something is a real setting or just scene texture, exclude it.
 
-Entity classification clarification:
-- A "character" is only a person (fictional or real); do not include animals, objects (such as "laurel" which refers to an item or thing), or abstract entities in this field. Carefully distinguish between people and things; literal objects must not be classified as characters.
-- A "setting" is only a place—physical or geographic locations where events occur; do not include time periods, situations, or abstract concepts (e.g., "underground life"). Carefully distinguish between locations and conceptual/abstract settings; only list concrete, physical places.
-- Ensure these strict definitions are followed during extraction and in all output fields and metadata. If unsure, err on the side of exclusion.
+What counts as a relationship:
+- Only include meaningful, narratively useful dynamics between characters.
+- Good relationship signals include family ties, friendship, rivalry, romance, alliance, mentorship, fear, loyalty, dependence, resentment, or repeated conflict.
+- Exclude one-off introductions, greetings, commands, logistics, proximity, job functions, or temporary scene mechanics.
+- Example to exclude: a captain introducing each person to someone else does not create a meaningful relationship entry by itself.
+- Include a relationship only when the session makes the dynamic explicit or strongly supported.
 
-Silent analysis (background extraction) task:
-- For every invocation, review the complete journaling history (latest last) and update a structured note.
-- Validate that summaries and structured data strictly reflect only user input—never invent, guess, or embellish details. If information is ambiguous, arrays remain empty.
-- Write all summaries in your own words (never using user text verbatim), as a concise paragraph naming central characters (persons only), sequencing key moments, and noting significance. Integrate emotional tones or themes only if user alludes.
-- Summaries and reflections should not reference the journaling process itself; insights should be presented as part of the narrative, not as commentary on the user's notes.
-- Limit summary to 150 words per chapter, keep it flowing and natural (avoid bullets).
-- Always prioritize 1-5 of the most relevant and important items in each array; leave empty if details are insufficient.
-- In the "extraSections" array, update or create sections such as "Themes" or "Conflicts" as needed, recording all relevant insights.
-- Summaries and bullets should be brief, neutral, emoji-free, and non-decorative.
-- Maintain clarity in user reflections, using their own words when appropriate—but never copy entire user sentences verbatim.
-- Deduplicate or merge overlapping points into a single clear bullet.
+Summary rules:
+- Summarize the whole session, not just the latest note.
+- Match the depth and certainty of the user's notes. If the notes are shallow, factual, or tentative, keep the summary shallow, factual, or tentative.
+- Do not add extra drama, symbolism, motives, stakes, or interpretation unless the user clearly supports them.
+- Use your own words, keep the summary concise, and keep it under 150 words.
+- If later notes correct earlier notes, reflect the latest supported understanding.
 
-Relationship extraction and updating:
-- The "relationships" array should contain only the most essential, meaningful links between characters (persons only), based strictly on user input.
-- Express each relationship as a single, concise label describing the dynamic, such as:
-  - "Darrow & Eo - Husband and wife"
-  - "Darrow -> Cassius - Enemies"
-  - "Mustang & Darrow - Confidants (unsure)"
-- Update each relationship label over time as new context emerges; for example, change "Confidants (unsure)" to "Good friends" if the user provides supporting evidence.
-- Relationships must remain short, clear, and focused on the dominant or most changing dynamics. Do not list old states; always reflect the latest, most accurate dynamic.
-- Include relationships only if unambiguously supported by user notes. If context is ambiguous, omit or remove the relationship until it is clarified.
-- Do not exceed 1-6 relationship entries; avoid overpopulating the list.
+Extraction rules:
+- Use only information supported by the user's notes and provided reflection insights.
+- If something is ambiguous, leave it out or ask for clarification only if knowing it would clearly improve the note.
+- Prioritize the 1-5 most important items in each array.
+- Deduplicate aggressively and merge overlapping points.
+- Keep bullets brief, neutral, and useful for future recall.
 
-Background extraction (not user-facing):
-- Silently extract detailed metadata for characters (persons only) and places (settings), including traits, actions, affiliations, motives, and relationship notes.
-- Store this metadata internally in a top-level "metadata" object; do not use or reveal this metadata in user-facing summaries.
+Clarification rules:
+- Ask at most one brief clarification question.
+- Ask only when ambiguity blocks reliable extraction of a key character, relationship, setting, or story term.
+- Good reasons to ask:
+  - a repeated but undefined story-specific term such as "crawler"
+  - a repeatedly mentioned named being whose role or importance is unclear
+  - a contradiction in the session that changes the summary
+  - a vague reference that prevents understanding who or what is being discussed
+- Do not ask for minor decorative details.
+- Do not ask a question if the note is already useful without it.
+- Keep the clarification short, natural, and directly tied to the user's wording.
 
-Output Instructions:
-- Always return a single JSON object with the following structure:
+Output instructions:
+- Return one JSON object only.
+- Use this exact shape:
   {
     "summary": [],
-    "characters": [],       // only persons, never include objects or things
-    "setting": [],          // only physical places, never include abstract concepts or situations
-    "relationships": [],    // only between persons
+    "characters": [],
+    "setting": [],
+    "relationships": [],
     "reflections": [],
     "extraSections": [
       {
@@ -390,105 +458,34 @@ Output Instructions:
           "affiliations": []
         }
       ]
+    },
+    "assistantMessage": {
+      "content": ""
     }
   }
-- All arrays must be empty if lacking sufficient detail.
-- Do not include any explanation or surrounding text—return only the raw JSON object.
-- Order items in arrays by relevance or importance.
+- If no clarification is needed, set "assistantMessage" to null.
+- All other arrays must be empty when the session lacks enough support.
+- Order arrays by importance.
 
-# Steps
-
-1. Read the complete journaling history.
-2. Analyze and extract only clearly supported characters (persons only—never objects or non-human things), places (settings—only physical locations), themes, relationships (between persons), and reflections.
-3. Concisely summarize key moments, characters, motivations, and stakes—always in your own words.
-4. Identify and record the essential 1-6 relationships, labeling dynamics by current context and updating them as the story evolves.
-5. Populate structured and metadata fields accordingly, or leave blank if details are missing.
-
-# Output Format
-
-Return only a JSON object as specified above. Every field may contain 0-4 items prioritized by significance. Do not add extra fields or commentary.
-
-# Examples
-
-Example 1—Character and Setting Extraction
-
-User note:
-"Darrow sneaks into the Institute, anxious but determined. Mustang helps him plan the escape, though neither is sure they can trust each other yet."
-
-Returns in relevant fields:
-"characters": [
-  "Darrow",
-  "Mustang"
-],
-"setting": [
-  "Institute"
-],
-"relationships": [
-  "Darrow & Mustang - Cautious allies (trust unproven)"
-]
-
-Example 1b—Incorrect Extraction (Object captured)
-
-User note:
-"Darrow wins the laurel for his achievement."
-
-Incorrect:
-"characters": [
-  "Darrow",
-  "Laurel"
-],
-
-Correct:
-"characters": [
-  "Darrow"
-], // 'Laurel' is an object, not a person, and should not be included.
-
-Example 2—Incorrect Extraction (Abstract setting)
-
-User note:
-"He was living the underground life."
-
-Incorrect:
-"setting": [
-  "underground life"
-],
-
-Correct:
-"setting": [
-  // Empty, as 'underground life' is an abstract concept, not a location.
-],
-
-Example 3—Relationship Evolution (later)
-
-User note:
-"Darrow and Mustang saved each other when the Jackals attacked. Now they seem to have a strong bond."
-
-Updates:
-"characters": [
-  "Darrow",
-  "Mustang"
-],
-"setting": [
-  // Empty if no new places are mentioned
-],
-"relationships": [
-  "Darrow & Mustang - Trusted allies"
-]
-
-(Real examples are expected to reflect the accurate, human-only character and place-only setting extraction above.)
-
-# Notes
-
-- Only include persons in the "characters" field—never objects, animals, or abstract entities.
-- Only include physical or geographic locations in the "setting" field—never conceptual environments, situations, or time periods.
-- Relationships must be between persons only and derived strictly from user notes.
-- Always use your own words in summaries and bullets, never copy user text verbatim, and deduplicate similar entries.
-- Never refer to the act of note-taking or the presence of a note within summaries or reflections; instead, present all extracted information as direct observations or story narrative.
-
-Reminder: Your main goal is to extract and update only the most essential relationships between persons, label them concisely and accurately, and categorize characters (persons only) and settings (places only) precisely, alongside the core summarization and note categorization tasks.
+Examples:
+- If the user writes "Carl is a crawler" and the term is important but undefined, a good assistantMessage is:
+  {"content":"You mentioned that Carl is a crawler. What is a crawler in this story?"}
+- If the user keeps mentioning Donut the cat and the notes suggest Donut matters, a good assistantMessage is:
+  {"content":"You mention Donut a lot. Is Donut an important character in this book?"}
+- If the user mentions a door, gate, tree, or snow storm as scene detail, those should usually stay out of "setting".
+- If the user says one character introduced others to each other, that alone should not create relationship entries.
 `.trim();
 
     const latestNote = notes.length > 0 ? notes[notes.length - 1].content : "";
+    const insightsBlock =
+      insights.length > 0
+        ? insights
+            .map((entry, index) => {
+              const preview = entry.preview ? ` (${entry.preview})` : "";
+              return `${index + 1}. [${entry.section}] ${entry.value}${preview}`;
+            })
+            .join("\n")
+        : "None";
 
     const userPayload = `
 Structured note so far:
@@ -497,18 +494,29 @@ ${JSON.stringify(summary, null, 2)}
 All notes so far (latest last):
 ${notes.map((note, index) => `${index + 1}. ${note.content}`).join("\n") || "None yet"}
 
-Newest note from the user (focus on this while keeping the rest in mind):
+Reflection insights to merge:
+${insightsBlock}
+
+Newest note from the user:
 ${latestNote || "None"}
+
+Important reminder:
+- The saved summary must represent the whole session above, not only the newest note.
+- Use the newest note mainly to update or correct the session-wide understanding.
 `.trim();
 
     const response = await client.responses.create({
-      model: process.env.AI_MODEL_JOURNAL || "gpt-5-nano",
+      model: process.env.AI_MODEL_JOURNAL || JOURNAL_CONFIG.model,
       reasoning: { effort: "low" },
       input: [
         { role: "system", content: instructions },
         { role: "user", content: userPayload },
       ],
-      max_output_tokens: (process.env.AI_MAX_TOKENS_JOURNAL ? parseInt(process.env.AI_MAX_TOKENS_JOURNAL, 10) : 5000),
+      max_output_tokens: (
+        process.env.AI_MAX_TOKENS_JOURNAL
+          ? parseInt(process.env.AI_MAX_TOKENS_JOURNAL, 10)
+          : JOURNAL_CONFIG.maxOutputTokens
+      ),
     });
 
     const rawOutput = response.output_text ?? "";
@@ -544,8 +552,11 @@ ${latestNote || "None"}
     const extractedMetadata = normalizeMetadata(
       parsed && typeof parsed === "object" ? (parsed as { metadata?: unknown }).metadata : undefined,
     );
+    const assistantMessage = normalizeAssistantMessage(
+      parsed && typeof parsed === "object" ? (parsed as { assistantMessage?: unknown }).assistantMessage : undefined,
+    );
 
-    return Response.json({ summary: updatedSummary, metadata: extractedMetadata });
+    return Response.json({ summary: updatedSummary, metadata: extractedMetadata, assistantMessage });
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Unable to generate note summary";
