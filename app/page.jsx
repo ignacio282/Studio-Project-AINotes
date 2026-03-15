@@ -2511,6 +2511,10 @@ export default function JournalingPage(props) {
       }
 
       const payload = await res.json();
+      const assistantMessageContent =
+        typeof payload?.assistantMessage?.content === "string"
+          ? payload.assistantMessage.content.trim()
+          : "";
       if (payload?.summary) {
         const normalizedSummary = normalizeSummary(payload.summary);
         latestPersistedSummaryRef.current = normalizedSummary;
@@ -2544,6 +2548,29 @@ export default function JournalingPage(props) {
         } catch {
           // non-blocking
         }
+      }
+
+      if (source === "journal" && assistantMessageContent) {
+        setMessages((prev) => {
+          const alreadyExists = prev.some(
+            (message) =>
+              message.role === "ai" &&
+              typeof message.content === "string" &&
+              message.content.trim() === assistantMessageContent,
+          );
+          if (alreadyExists) {
+            return prev;
+          }
+          return [
+            ...prev,
+            {
+              id: safeUuid(),
+              role: "ai",
+              content: assistantMessageContent,
+              createdAt: new Date().toISOString(),
+            },
+          ];
+        });
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
