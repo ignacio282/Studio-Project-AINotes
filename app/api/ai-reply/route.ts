@@ -71,116 +71,12 @@ const JOURNAL_CONFIG = getAiConfig("journal");
 
 const TAGGED_NAME_PATTERN = /(^|[\s([{])@([A-Za-z])([A-Za-z0-9'_-]*)/g;
 const SUMMARY_TAG_PATTERN = /(^|[\s([{])[@#$]([A-Za-z])([A-Za-z0-9'_-]*)/g;
-const MAX_SUMMARY_ITEMS = 5;
-const MAX_CHARACTER_ITEMS = 5;
-const MAX_SETTING_ITEMS = 3;
-const MAX_RELATIONSHIP_ITEMS = 3;
-const MAX_REFLECTION_ITEMS = 3;
-const MAX_EXTRA_SECTIONS = 1;
-const MAX_EXTRA_ITEMS = 3;
-
-const GENERIC_CHARACTER_EXACT = new Set([
-  "audience",
-  "corporation",
-  "crawler",
-  "crawlers",
-  "crowd",
-  "crowds",
-  "fans",
-  "group",
-  "groups",
-  "humans",
-  "npc",
-  "npcs",
-  "participants",
-  "people",
-  "player",
-  "players",
-  "supporters",
-  "survivors",
-  "victims",
-]);
-
-const GENERIC_CHARACTER_FRAGMENTS = [
-  " (group",
-  " audience",
-  "collective identity",
-  "corporation",
-  "crowd",
-  "fans",
-  "group of",
-  "participants",
-  "player base",
-  "supporters",
-  "victims of",
-];
-
-const GENERIC_SETTING_EXACT = new Set([
-  "audience",
-  "darkness",
-  "gate",
-  "gates",
-  "inside",
-  "inventory",
-  "map",
-  "outside",
-  "rest zone",
-  "snow storm",
-  "snowstorm",
-  "stats",
-  "storm",
-  "tooltips",
-  "weather",
-  "window",
-  "windows",
-  "tree",
-  "trees",
-]);
-
-const GENERIC_SETTING_FRAGMENTS = [
-  "audience",
-  "broadcast",
-  "destination",
-  "game-like world",
-  "hud",
-  "in-game audience",
-  "inventory",
-  "map",
-  "outdoor encounter",
-  "scene texture",
-  "sought after combat",
-  "stats",
-  "tooltips",
-  "where creatures are fought",
-];
-
-const LOW_VALUE_EXTRA_TITLES = new Set([
-  "context",
-  "details",
-  "future",
-  "misc",
-  "notes on future",
-  "other",
-  "predictions",
-]);
-
-const REFLECTION_MARKERS = [
-  /\bi think\b/i,
-  /\bi wonder\b/i,
-  /\bi feel\b/i,
-  /\bi felt\b/i,
-  /\bi noticed\b/i,
-  /\bi liked\b/i,
-  /\bi loved\b/i,
-  /\bi hated\b/i,
-  /\bi suspect\b/i,
-  /\bi predict\b/i,
-  /\bi was surprised\b/i,
-  /\bi'm surprised\b/i,
-  /\bi am surprised\b/i,
-  /\bmy takeaway\b/i,
-  /\bfor me\b/i,
-];
+const RUNAWAY_SUMMARY_LIMIT = 12;
+const RUNAWAY_ENTITY_LIMIT = 20;
+const RUNAWAY_RELATIONSHIP_LIMIT = 12;
+const RUNAWAY_REFLECTION_LIMIT = 8;
+const RUNAWAY_EXTRA_SECTION_LIMIT = 3;
+const RUNAWAY_EXTRA_ITEM_LIMIT = 8;
 
 function stripCharacterTags(value: string): string {
   return value.replace(TAGGED_NAME_PATTERN, (_, prefix: string, firstLetter: string, rest: string) => {
@@ -234,6 +130,39 @@ function dedupeAndLimit(
   return result;
 }
 
+function dedupeByBestLabel(values: string[]): string[] {
+  const bestByKey = new Map<string, string>();
+  values.forEach((value) => {
+    const normalized = normalizeWhitespace(value);
+    if (!normalized) {
+      return;
+    }
+    const key = toComparableKey(normalized);
+    if (!key) {
+      return;
+    }
+    const existing = bestByKey.get(key);
+    if (!existing) {
+      bestByKey.set(key, normalized);
+      return;
+    }
+    const existingScore = scoreCanonicalLabel(existing);
+    const nextScore = scoreCanonicalLabel(normalized);
+    if (nextScore > existingScore) {
+      bestByKey.set(key, normalized);
+    }
+  });
+  return Array.from(bestByKey.values());
+}
+
+function scoreCanonicalLabel(value: string): number {
+  let score = 0;
+  if (/[A-Z]/.test(value)) score += 2;
+  if (!/[()]/.test(value)) score += 1;
+  if (!/^\w+$/.test(value)) score += 1;
+  return score;
+}
+
 function splitSummaryCandidate(value: string): string[] {
   const normalized = normalizeWhitespace(value);
   if (!normalized) {
@@ -263,16 +192,13 @@ function cleanSummaryItems(values: string[]): string[] {
     }
     return parts;
   });
-  return dedupeAndLimit(expanded, MAX_SUMMARY_ITEMS);
+  return dedupeAndLimit(expanded, RUNAWAY_SUMMARY_LIMIT);
 }
 
 function looksLikeCharacter(value: string): boolean {
   const normalized = stripTrailingQualifier(value);
   const comparable = toComparableKey(normalized);
-  if (!comparable || GENERIC_CHARACTER_EXACT.has(comparable)) {
-    return false;
-  }
-  if (GENERIC_CHARACTER_FRAGMENTS.some((fragment) => ` ${comparable} `.includes(fragment))) {
+  if (!comparable) {
     return false;
   }
   if (normalized.includes("→") || normalized.includes("->") || normalized.includes(":")) {
@@ -283,24 +209,24 @@ function looksLikeCharacter(value: string): boolean {
 
 function cleanCharacterItems(values: string[]): string[] {
   return dedupeAndLimit(
-    values
+    dedupeByBestLabel(
+      values
       .map((value) => stripTrailingQualifier(value))
       .map(normalizeWhitespace)
       .filter((value) => looksLikeCharacter(value)),
-    MAX_CHARACTER_ITEMS,
+    ),
+    RUNAWAY_ENTITY_LIMIT,
+    toComparableKey,
   );
 }
 
 function looksLikeSetting(value: string): boolean {
   const normalized = stripTrailingQualifier(value);
   const comparable = toComparableKey(normalized);
-  if (!comparable || GENERIC_SETTING_EXACT.has(comparable)) {
+  if (!comparable) {
     return false;
   }
-  if (GENERIC_SETTING_FRAGMENTS.some((fragment) => comparable.includes(fragment))) {
-    return false;
-  }
-  if (/\bwhere\b|\bdestination\b|\bafter combat\b/i.test(normalized)) {
+  if (normalized.includes("→") || normalized.includes("->")) {
     return false;
   }
   return true;
@@ -308,11 +234,14 @@ function looksLikeSetting(value: string): boolean {
 
 function cleanSettingItems(values: string[]): string[] {
   return dedupeAndLimit(
-    values
+    dedupeByBestLabel(
+      values
       .map((value) => stripTrailingQualifier(value))
       .map(normalizeWhitespace)
       .filter((value) => looksLikeSetting(value)),
-    MAX_SETTING_ITEMS,
+    ),
+    RUNAWAY_ENTITY_LIMIT,
+    toComparableKey,
   );
 }
 
@@ -336,24 +265,14 @@ function cleanRelationshipItems(values: string[], characters: string[]): string[
       );
       return new Set(matchedCharacters.map((entry) => entry.key)).size >= 2;
     }),
-    MAX_RELATIONSHIP_ITEMS,
+    RUNAWAY_RELATIONSHIP_LIMIT,
   );
-}
-
-function looksLikeReflection(value: string): boolean {
-  const normalized = normalizeWhitespace(value);
-  if (!normalized) {
-    return false;
-  }
-  return REFLECTION_MARKERS.some((pattern) => pattern.test(normalized));
 }
 
 function cleanReflectionItems(values: string[]): string[] {
   return dedupeAndLimit(
-    values
-      .map(normalizeWhitespace)
-      .filter((value) => looksLikeReflection(value)),
-    MAX_REFLECTION_ITEMS,
+    values.map(normalizeWhitespace).filter(Boolean),
+    RUNAWAY_REFLECTION_LIMIT,
   );
 }
 
@@ -365,7 +284,7 @@ function cleanExtraSections(
     .map((section) => {
       const title = normalizeWhitespace(section.title);
       const titleKey = toComparableKey(title);
-      if (!title || !titleKey || LOW_VALUE_EXTRA_TITLES.has(titleKey)) {
+      if (!title || !titleKey) {
         return null;
       }
       const items = dedupeAndLimit(
@@ -373,7 +292,7 @@ function cleanExtraSections(
           const key = toComparableKey(item);
           return Boolean(key) && !usedKeys.has(key);
         }),
-        MAX_EXTRA_ITEMS,
+        RUNAWAY_EXTRA_ITEM_LIMIT,
       );
       if (items.length < 2) {
         return null;
@@ -382,7 +301,7 @@ function cleanExtraSections(
     })
     .filter((section): section is { title: string; items: string[] } => Boolean(section));
 
-  return sections.slice(0, MAX_EXTRA_SECTIONS);
+  return sections.slice(0, RUNAWAY_EXTRA_SECTION_LIMIT);
 }
 
 function cleanStructuredNote(note: StructuredNote): StructuredNote {
@@ -650,6 +569,35 @@ function normalizeInsights(value: unknown): { section: string; value: string; pr
     .filter((entry): entry is { section: string; value: string; preview: string } => Boolean(entry));
 }
 
+function extractJsonCandidate(rawOutput: string): string {
+  const direct = rawOutput.trim();
+  if (!direct) return "{}";
+  try {
+    JSON.parse(direct);
+    return direct;
+  } catch {
+    const fenced = direct.match(/```json\s*([\s\S]*?)```/i) ?? direct.match(/```\s*([\s\S]*?)```/);
+    if (fenced) {
+      return fenced[1];
+    }
+    const start = direct.indexOf("{");
+    const end = direct.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) {
+      return direct.slice(start, end + 1);
+    }
+    return "{}";
+  }
+}
+
+function parseJsonObject(rawOutput: string): unknown {
+  const jsonCandidate = extractJsonCandidate(rawOutput);
+  try {
+    return JSON.parse(jsonCandidate);
+  } catch {
+    return {};
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const url = new URL(req.url);
@@ -748,6 +696,7 @@ Extraction rules:
 - "reflections" must only contain explicit user opinions, reactions, questions, or predictions. Do not invent takeaways on the user's behalf.
 - "extraSections" should usually be empty. Use them only when a small section would add clear recall value without repeating the summary.
 - "metadata" should usually stay empty.
+- Before finalizing, review every non-summary item and drop it if it is generic, weakly supported, repetitive, or less useful than leaving the field empty.
 
 Clarification rules:
 - Ask at most one brief clarification question.
@@ -817,6 +766,28 @@ Examples:
 - Bad reflection: "The dungeon's historical cap suggests extreme risk" unless the user explicitly said that as their own takeaway.
 `.trim();
 
+    const revisionInstructions = `
+Developer: You are the second-pass editor for Scriba journal summaries.
+
+Your job is to revise a candidate structured note so it becomes more trustworthy, compact, and useful for later recall.
+
+Editing rules:
+- Use the user's notes and reflection insights as the only authority.
+- You may remove, merge, shorten, or reorder items.
+- Do not add new facts that were not already present in the candidate note and supported by the notes.
+- Prefer omission over weak extraction.
+- Keep strange or book-specific facts when they are clearly supported.
+- "characters" should contain only story-relevant actors, not generic groups or concepts.
+- "setting" should contain only meaningful places, not props, weather, interface terms, goals, or abstract framing.
+- "relationships" should only contain meaningful dynamics between characters and should often be empty.
+- "reflections" should only contain explicit user reflections, not AI conclusions.
+- "extraSections" should usually be empty.
+- "metadata" should usually be empty.
+- Preserve one short clarification question in "assistantMessage" only if it materially improves the saved note; otherwise set it to null.
+
+Return one JSON object only using the same shape as the candidate.
+`.trim();
+
     const latestNote = notes.length > 0 ? notes[notes.length - 1].content : "";
     const insightsBlock =
       insights.length > 0
@@ -860,41 +831,52 @@ Important reminder:
       ),
     });
 
-    const rawOutput = response.output_text ?? "";
-    const jsonCandidate = (() => {
-      const direct = rawOutput.trim();
-      if (!direct) return "{}";
-      try {
-        JSON.parse(direct);
-        return direct;
-      } catch {
-        const fenced = direct.match(/```json\s*([\s\S]*?)```/i) ?? direct.match(/```\s*([\s\S]*?)```/);
-        if (fenced) {
-          return fenced[1];
-        }
-        const start = direct.indexOf("{");
-        const end = direct.lastIndexOf("}");
-        if (start !== -1 && end !== -1 && end > start) {
-          return direct.slice(start, end + 1);
-        }
-        return "{}";
-      }
-    })();
+    const drafted = parseJsonObject(response.output_text ?? "");
 
-    const parsed = (() => {
-      try {
-        return JSON.parse(jsonCandidate);
-      } catch {
-        return {};
-      }
-    })();
+    const revisionPayload = `
+User notes:
+${notes.map((note, index) => `${index + 1}. ${note.content}`).join("\n") || "None yet"}
 
-    const updatedSummary = normalizeSummary(parsed);
+Reflection insights:
+${insightsBlock}
+
+Candidate structured note:
+${JSON.stringify(drafted, null, 2)}
+
+Revise the candidate so it keeps only the most useful, supported information.
+`.trim();
+
+    const revisionResponse = await client.responses.create({
+      model: process.env.AI_MODEL_JOURNAL || JOURNAL_CONFIG.model,
+      reasoning: { effort: "low" },
+      input: [
+        { role: "system", content: revisionInstructions },
+        { role: "user", content: revisionPayload },
+      ],
+      max_output_tokens: Math.min(
+        process.env.AI_MAX_TOKENS_JOURNAL
+          ? parseInt(process.env.AI_MAX_TOKENS_JOURNAL, 10)
+          : JOURNAL_CONFIG.maxOutputTokens,
+        1200,
+      ),
+    });
+
+    const revised = parseJsonObject(revisionResponse.output_text ?? "");
+    const finalCandidate =
+      revised && typeof revised === "object" && Object.keys(revised as Record<string, unknown>).length > 0
+        ? revised
+        : drafted;
+
+    const updatedSummary = normalizeSummary(finalCandidate);
     const extractedMetadata = normalizeMetadata(
-      parsed && typeof parsed === "object" ? (parsed as { metadata?: unknown }).metadata : undefined,
+      finalCandidate && typeof finalCandidate === "object"
+        ? (finalCandidate as { metadata?: unknown }).metadata
+        : undefined,
     );
     const assistantMessage = normalizeAssistantMessage(
-      parsed && typeof parsed === "object" ? (parsed as { assistantMessage?: unknown }).assistantMessage : undefined,
+      finalCandidate && typeof finalCandidate === "object"
+        ? (finalCandidate as { assistantMessage?: unknown }).assistantMessage
+        : undefined,
     );
 
     return Response.json({ summary: updatedSummary, metadata: extractedMetadata, assistantMessage });
