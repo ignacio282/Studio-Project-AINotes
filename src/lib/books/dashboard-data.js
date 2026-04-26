@@ -3,6 +3,7 @@ import {
   getProgressTotalValue,
   normalizeTrackingMode,
 } from "@/lib/books/progress";
+import { fetchKnowledgeEntitiesForBooks } from "@/lib/knowledge/read";
 
 function toArray(value) {
   return Array.isArray(value) ? value : [];
@@ -99,9 +100,10 @@ function buildMemoryLookup(rows) {
   return lookup;
 }
 
-function buildBookStats(books, notes, memoryRows, characters) {
+function buildBookStats(books, notes, memoryRows, characters, knowledgeEntities = []) {
   const notesByBook = new Map();
   const charRowsByBook = new Map();
+  const knowledgeCharsByBook = new Map();
   const normalizedCharacterLookup = new Map();
   const memoryLookup = buildMemoryLookup(memoryRows);
 
@@ -122,6 +124,13 @@ function buildBookStats(books, notes, memoryRows, characters) {
     const bucket = notesByBook.get(note.book_id) ?? [];
     bucket.push(note);
     notesByBook.set(note.book_id, bucket);
+  });
+
+  toArray(knowledgeEntities).forEach((entity) => {
+    if (!entity?.book_id || entity.type !== "character") return;
+    const bucket = knowledgeCharsByBook.get(entity.book_id) ?? [];
+    bucket.push(entity);
+    knowledgeCharsByBook.set(entity.book_id, bucket);
   });
 
   return toArray(books).map((book) => {
@@ -156,22 +165,34 @@ function buildBookStats(books, notes, memoryRows, characters) {
       });
     });
 
-    const topCharacters = Array.from(mentionCounts.entries())
-      .sort((a, b) => {
-        if (b[1] !== a[1]) return b[1] - a[1];
-        return a[0].localeCompare(b[0]);
-      })
-      .slice(0, 4)
-      .map(([normalizedName, mentions]) => {
-        const key = `${book.id}::${normalizedName}`;
-        const row = normalizedCharacterLookup.get(key);
-        return {
-          name: row?.name || mentionLabels.get(normalizedName) || normalizedName,
-          slug: row?.slug || "",
-          subtitle: row?.role || row?.short_bio || "Mentioned in your notes.",
-          mentions,
-        };
-      });
+    const knowledgeCharacters = toArray(knowledgeCharsByBook.get(book.id));
+    const topCharacters =
+      knowledgeCharacters.length > 0
+        ? knowledgeCharacters
+            .sort((a, b) => Number(b.mention_count || 0) - Number(a.mention_count || 0) || a.name.localeCompare(b.name))
+            .slice(0, 4)
+            .map((row) => ({
+              name: row.name,
+              slug: row.slug || "",
+              subtitle: row.profile?.summary || row.profile?.role || "Mentioned in your notes.",
+              mentions: Number(row.mention_count || 0),
+            }))
+        : Array.from(mentionCounts.entries())
+            .sort((a, b) => {
+              if (b[1] !== a[1]) return b[1] - a[1];
+              return a[0].localeCompare(b[0]);
+            })
+            .slice(0, 4)
+            .map(([normalizedName, mentions]) => {
+              const key = `${book.id}::${normalizedName}`;
+              const row = normalizedCharacterLookup.get(key);
+              return {
+                name: row?.name || mentionLabels.get(normalizedName) || normalizedName,
+                slug: row?.slug || "",
+                subtitle: row?.role || row?.short_bio || "Mentioned in your notes.",
+                mentions,
+              };
+            });
 
     return {
       ...book,
@@ -250,7 +271,14 @@ export async function fetchBooksDashboardData(supabase, userId) {
   if (memoryQuery.error) throw memoryQuery.error;
   if (charactersQuery.error) throw charactersQuery.error;
 
-  const booksWithStats = buildBookStats(books, notesQuery.data, memoryRows, charactersQuery.data);
+  let knowledgeEntities = [];
+  try {
+    knowledgeEntities = await fetchKnowledgeEntitiesForBooks(supabase, userId, ids);
+  } catch (error) {
+    console.error("Failed to read dashboard knowledge entities:", error);
+  }
+
+  const booksWithStats = buildBookStats(books, notesQuery.data, memoryRows, charactersQuery.data, knowledgeEntities);
 
   const reading = booksWithStats
     .filter((book) => book.status === "reading")

@@ -131,6 +131,26 @@ export async function DELETE(
       .eq("user_id", user.id);
     if (deleteError) throw deleteError;
 
+    const { error: snapshotDeleteError } = await supabase
+      .from("character_assistant_snapshots")
+      .delete()
+      .eq("book_id", bookId)
+      .eq("character_slug", slug)
+      .eq("user_id", user.id);
+    if (snapshotDeleteError) throw snapshotDeleteError;
+
+    try {
+      await supabase
+        .from("book_entities")
+        .delete()
+        .eq("book_id", bookId)
+        .eq("type", "character")
+        .eq("slug", slug)
+        .eq("user_id", user.id);
+    } catch (knowledgeDeleteError) {
+      console.error("Failed to delete character knowledge rows:", knowledgeDeleteError);
+    }
+
     const targetName = typeof character.name === "string" ? character.name : "";
     if (targetName) {
       const { data: notesData, error: notesError } = await supabase
