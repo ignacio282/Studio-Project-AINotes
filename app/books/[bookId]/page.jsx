@@ -7,6 +7,7 @@ import BookHubTabs from "@/components/BookHubTabs";
 import QaLoadingPage from "@/components/qa/QaLoadingPage";
 import { resolveQaState } from "@/lib/qa/state";
 import { normalizeTrackingMode } from "@/lib/books/progress";
+import { fetchBookKnowledgeEntities } from "@/lib/knowledge/read";
 
 function CalendarIcon({ className }) {
   return (
@@ -171,10 +172,32 @@ export default async function BookHubPage({ params, searchParams }) {
 
   const notes = qaState === "empty" ? [] : Array.isArray(notesData) ? notesData : [];
   const characters = qaState === "empty" ? [] : Array.isArray(charactersData) ? charactersData : [];
+  let knowledgeEntities = [];
+  if (qaState !== "empty") {
+    try {
+      knowledgeEntities = await fetchBookKnowledgeEntities(supabase, authData.user.id, bookId);
+    } catch (error) {
+      console.error("Failed to read book knowledge entities:", error);
+    }
+  }
   const noteCount = notes.length;
   const firstNoteAt = noteCount > 0 ? notes[notes.length - 1].created_at : null;
-  const { characters: noteCharacters, places } = extractEntities(notes);
-  const charCount = characters.length;
+  const extracted = extractEntities(notes);
+  const knowledgeCharacters = knowledgeEntities
+    .filter((entity) => entity.type === "character")
+    .map((entity) => ({
+      name: entity.name,
+      slug: entity.slug,
+      firstChapter: entity.first_chapter,
+      lastChapter: entity.last_chapter,
+    }));
+  const knowledgePlaces = knowledgeEntities
+    .filter((entity) => entity.type === "place")
+    .map((entity) => entity.name)
+    .sort((a, b) => a.localeCompare(b));
+  const noteCharacters = knowledgeCharacters.length > 0 ? knowledgeCharacters : extracted.characters;
+  const places = knowledgePlaces.length > 0 ? knowledgePlaces : extracted.places;
+  const charCount = noteCharacters.length || characters.length;
   const placeCount = places.length;
 
   const startedOn = firstNoteAt ?? book?.created_at ?? null;

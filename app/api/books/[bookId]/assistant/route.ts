@@ -21,6 +21,32 @@ type MemoryRow = {
   summary: unknown;
 };
 
+type KnowledgeEntityRow = {
+  id: string;
+  type: string;
+  slug: string;
+  name: string;
+  first_chapter: number | null;
+  last_chapter: number | null;
+  mention_count: number | null;
+  profile: Record<string, unknown> | null;
+};
+
+type KnowledgeMentionRow = {
+  entity_id: string;
+  chapter_number: number;
+  source_text: string | null;
+};
+
+type KnowledgeRelationshipRow = {
+  source_entity_id: string | null;
+  target_entity_id: string | null;
+  label: string | null;
+  description: string | null;
+  evidence: string | null;
+  chapter_number: number | null;
+};
+
 type NormalizedSummary = {
   summary: string[];
   characters: string[];
@@ -57,6 +83,12 @@ type AssistantAction = {
     context: string;
     questions: string[];
   };
+};
+
+type AssistantStructured = {
+  summary: string;
+  evidence: string[];
+  relationships: string[];
 };
 
 const STOP_WORDS = new Set([
@@ -217,6 +249,14 @@ function normalizeStructured(raw: unknown): { summary: string; evidence: string[
   const relationships = toStringList(rec.relationships);
   if (!summary) return null;
   return { summary, evidence, relationships };
+}
+
+function slugifyName(name: string): string {
+  return (name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
 }
 
 function formatSummaryForPrompt(raw: unknown): string {
@@ -383,6 +423,117 @@ function buildChapterIndex(rows: MemoryRow[]) {
   return { characters, relationships };
 }
 
+function mergeKnowledgeIndex(
+  chapterIndex: ReturnType<typeof buildChapterIndex>,
+  entities: KnowledgeEntityRow[],
+  mentions: KnowledgeMentionRow[],
+  relationships: KnowledgeRelationshipRow[],
+) {
+  const mentionsByEntity = new Map<string, KnowledgeMentionRow[]>();
+  mentions.forEach((mention) => {
+    if (!mention?.entity_id) return;
+    const bucket = mentionsByEntity.get(mention.entity_id) ?? [];
+    bucket.push(mention);
+    mentionsByEntity.set(mention.entity_id, bucket);
+  });
+  const relationshipHitsByEntity = new Map<string, number>();
+  relationships.forEach((row) => {
+    if (row.source_entity_id) {
+      relationshipHitsByEntity.set(row.source_entity_id, (relationshipHitsByEntity.get(row.source_entity_id) ?? 0) + 1);
+    }
+    if (row.target_entity_id) {
+      relationshipHitsByEntity.set(row.target_entity_id, (relationshipHitsByEntity.get(row.target_entity_id) ?? 0) + 1);
+    }
+  });
+
+  entities
+    .filter((entity) => entity.type === "character" && entity.name)
+    .forEach((entity) => {
+      const entityMentions = mentionsByEntity.get(entity.id) ?? [];
+      const chapters = entityMentions
+        .map((mention) => Number(mention.chapter_number))
+        .filter((chapter) => Number.isFinite(chapter) && chapter > 0);
+      const first = Number(entity.first_chapter) || (chapters.length ? Math.min(...chapters) : 0);
+      const last = Number(entity.last_chapter) || (chapters.length ? Math.max(...chapters) : first);
+      if (!first || !last) return;
+      const key = entity.name.toLowerCase();
+      const existing = chapterIndex.characters.get(key);
+      const mentionCount = Number(entity.mention_count || entityMentions.length || 1);
+      const relationshipMentions = relationshipHitsByEntity.get(entity.id) ?? 0;
+      if (!existing) {
+        chapterIndex.characters.set(key, {
+          name: entity.name,
+          chapters: new Set(chapters.length ? chapters : [first, last]),
+          first,
+          last,
+          mentions: mentionCount,
+          summaryMentions: mentionCount,
+          relationshipMentions,
+          reflectionMentions: 0,
+          extraMentions: 0,
+        });
+        return;
+      }
+      chapters.forEach((chapter) => existing.chapters.add(chapter));
+      existing.first = Math.min(existing.first, first);
+      existing.last = Math.max(existing.last, last);
+      existing.mentions = Math.max(existing.mentions, mentionCount);
+      existing.summaryMentions += mentionCount;
+      existing.relationshipMentions += relationshipMentions;
+    });
+
+  relationships.forEach((row) => {
+    const label = row.description || row.label || row.evidence || "";
+    const chapter = Number(row.chapter_number);
+    if (!label || !Number.isFinite(chapter)) return;
+    const key = label.toLowerCase();
+    const existing = chapterIndex.relationships.get(key);
+    if (!existing || chapter >= existing.chapter) {
+      chapterIndex.relationships.set(key, { label, chapter });
+    }
+  });
+
+  return chapterIndex;
+}
+
+function formatKnowledgeBlock(
+  entities: KnowledgeEntityRow[],
+  mentions: KnowledgeMentionRow[],
+  relationships: KnowledgeRelationshipRow[],
+  trackingMode: string,
+) {
+  if (entities.length === 0) return "";
+  const entityById = new Map(entities.map((entity) => [entity.id, entity]));
+  const mentionLines = mentions
+    .slice(0, 18)
+    .map((mention) => {
+      const entity = entityById.get(mention.entity_id);
+      if (!entity) return "";
+      const label = formatProgressLabel(trackingMode, Number(mention.chapter_number));
+      return `- ${entity.name} (${label}): ${mention.source_text || "mentioned in notes"}`;
+    })
+    .filter(Boolean);
+  const relationshipLines = relationships
+    .slice(0, 12)
+    .map((relationship) => {
+      const source = relationship.source_entity_id ? entityById.get(relationship.source_entity_id)?.name : "";
+      const target = relationship.target_entity_id ? entityById.get(relationship.target_entity_id)?.name : "";
+      const label = relationship.description || relationship.label || relationship.evidence || "";
+      const chapter = Number(relationship.chapter_number);
+      if (!label) return "";
+      const where = Number.isFinite(chapter) ? ` (${formatProgressLabel(trackingMode, chapter)})` : "";
+      const pair = source && target ? `${source} / ${target}: ` : "";
+      return `- ${pair}${label}${where}`;
+    })
+    .filter(Boolean);
+  return [
+    mentionLines.length ? `Canonical entity mentions:\n${mentionLines.join("\n")}` : "",
+    relationshipLines.length ? `Canonical relationships:\n${relationshipLines.join("\n")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 function formatChapterList(chapters: number[]): string {
   const sorted = chapters.filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
   if (sorted.length === 0) return "-";
@@ -406,6 +557,60 @@ function selectRelevantCharacters(index: Map<string, CharacterIndexEntry>, token
   return entries
     .sort((a, b) => b.mentions - a.mentions || a.first - b.first)
     .slice(0, 6);
+}
+
+function selectSnapshotCharacter(entries: CharacterIndexEntry[], tokens: string[]): CharacterIndexEntry | null {
+  if (entries.length === 0 || tokens.length === 0) return null;
+  const normalizedTokens = tokens.map((token) => token.toLowerCase());
+  const exact = entries.find((entry) => normalizedTokens.includes(entry.name.toLowerCase()));
+  if (exact) return exact;
+  return (
+    entries.find((entry) => {
+      const nameLower = entry.name.toLowerCase();
+      return normalizedTokens.some((token) => token.length > 2 && nameLower.includes(token));
+    }) ?? null
+  );
+}
+
+async function persistCharacterSnapshot({
+  supabase,
+  userId,
+  bookId,
+  question,
+  character,
+  answer,
+  structured,
+  sources,
+  maxChapter,
+}: {
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"];
+  userId: string;
+  bookId: string;
+  question: string;
+  character: CharacterIndexEntry;
+  answer: string;
+  structured: AssistantStructured | null;
+  sources: number[];
+  maxChapter: number;
+}) {
+  const slug = slugifyName(character.name);
+  if (!slug || !answer.trim()) return;
+  const snapshotStructured = {
+    summary: structured?.summary || answer,
+    evidence: structured?.evidence ?? [],
+    relationships: structured?.relationships ?? [],
+  };
+  const { error } = await supabase.from("character_assistant_snapshots").insert({
+    user_id: userId,
+    book_id: bookId,
+    character_slug: slug,
+    question,
+    answer,
+    structured: snapshotStructured,
+    sources,
+    max_chapter: maxChapter,
+  });
+  if (error) throw error;
 }
 
 function formatCharacterIndex(entries: CharacterIndexEntry[], trackingMode: string): string {
@@ -610,8 +815,49 @@ export async function POST(
         .sort((a, b) => a.chapter_number - b.chapter_number);
     }
 
+    let knowledgeEntities: KnowledgeEntityRow[] = [];
+    let knowledgeMentions: KnowledgeMentionRow[] = [];
+    let knowledgeRelationships: KnowledgeRelationshipRow[] = [];
+    try {
+      const { data: entities } = await supabase
+        .from("book_entities")
+        .select("id,type,slug,name,first_chapter,last_chapter,mention_count,profile")
+        .eq("user_id", user.id)
+        .eq("book_id", bookId);
+      knowledgeEntities = (Array.isArray(entities) ? entities : []) as KnowledgeEntityRow[];
+      const entityIds = knowledgeEntities.map((entity) => entity.id).filter(Boolean);
+      if (entityIds.length > 0) {
+        const [mentionsResponse, relationshipsResponse] = await Promise.all([
+          supabase
+            .from("book_entity_mentions")
+            .select("entity_id,chapter_number,source_text")
+            .eq("user_id", user.id)
+            .eq("book_id", bookId)
+            .lte("chapter_number", maxChapter)
+            .order("chapter_number", { ascending: true }),
+          supabase
+            .from("book_relationships")
+            .select("source_entity_id,target_entity_id,label,description,evidence,chapter_number")
+            .eq("user_id", user.id)
+            .eq("book_id", bookId)
+            .lte("chapter_number", maxChapter)
+            .order("chapter_number", { ascending: true }),
+        ]);
+        knowledgeMentions = (Array.isArray(mentionsResponse.data) ? mentionsResponse.data : []) as KnowledgeMentionRow[];
+        knowledgeRelationships = (Array.isArray(relationshipsResponse.data)
+          ? relationshipsResponse.data
+          : []) as KnowledgeRelationshipRow[];
+      }
+    } catch (knowledgeError) {
+      console.error("Failed to read assistant knowledge context:", knowledgeError);
+      knowledgeEntities = [];
+      knowledgeMentions = [];
+      knowledgeRelationships = [];
+    }
+
     const tokens = extractTokens(question);
     const chapterIndex = buildChapterIndex(memoryRows);
+    mergeKnowledgeIndex(chapterIndex, knowledgeEntities, knowledgeMentions, knowledgeRelationships);
     const relevantCharacters = selectRelevantCharacters(chapterIndex.characters, tokens);
 
     const rowsByChapter = new Map<number, MemoryRow>();
@@ -637,8 +883,16 @@ export async function POST(
     const memoryBlocks = mergedMemory.map((row) => formatMemoryBlock(row, trackingMode)).join("\n\n");
     const characterIndexBlock = formatCharacterIndex(relevantCharacters, trackingMode);
     const relationshipIndexBlock = formatRelationshipIndex(chapterIndex.relationships, trackingMode);
+    const knowledgeBlock = formatKnowledgeBlock(knowledgeEntities, knowledgeMentions, knowledgeRelationships, trackingMode);
     const actions = buildPromptActions(question, relevantCharacters, rowsByChapter, trackingMode);
-    const sourceChapters = mergedMemory.map((row) => row.chapter_number);
+    const sourceChapters = Array.from(
+      new Set([
+        ...mergedMemory.map((row) => row.chapter_number),
+        ...knowledgeMentions
+          .map((mention) => Number(mention.chapter_number))
+          .filter((chapter) => Number.isFinite(chapter) && chapter > 0),
+      ]),
+    ).sort((a, b) => a - b);
 
     const systemPrompt = `
 You are the reader's chronicler inside a reading companion app. Speak with warmth and clarity, like a scribe who has been following along.
@@ -674,6 +928,9 @@ ${characterIndexBlock}
 Relationships observed (latest note where seen):
 ${relationshipIndexBlock}
 
+Book knowledge base:
+${knowledgeBlock || "No canonical knowledge rows yet."}
+
 Relevant ${progressUnit} memory:
 ${memoryBlocks || "None available yet."}
 
@@ -697,6 +954,25 @@ Reply now.
     const answer = structured?.summary || raw;
     if (!answer) {
       throw new Error("The assistant did not return a reply.");
+    }
+
+    try {
+      const snapshotCharacter = selectSnapshotCharacter(relevantCharacters, tokens);
+      if (snapshotCharacter) {
+        await persistCharacterSnapshot({
+          supabase,
+          userId: user.id,
+          bookId,
+          question,
+          character: snapshotCharacter,
+          answer,
+          structured,
+          sources: sourceChapters,
+          maxChapter,
+        });
+      }
+    } catch (snapshotError) {
+      console.error("Failed to persist character assistant snapshot:", snapshotError);
     }
 
     return Response.json({ answer, structured, sources: sourceChapters, maxChapter, actions });

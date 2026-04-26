@@ -20,13 +20,14 @@ export async function GET() {
     }
 
     // Total notes
-    const totalRes = await supabase.from("notes").select("id", { count: "exact", head: true });
+    const totalRes = await supabase.from("notes").select("id", { count: "exact", head: true }).eq("user_id", user.id);
     const totalNotes = totalRes.count ?? 0;
 
     // Last 500 notes for simple aggregations
     const { data: recent } = await supabase
       .from("notes")
       .select("book_id,ai_summary,created_at")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(500);
 
@@ -62,7 +63,7 @@ export async function GET() {
       mostReadBookTitle = book?.title ?? "";
     }
 
-    // Favorite character (naive): most frequently mentioned in ai_summary.characters
+    // Favorite character: prefer canonical knowledge, fall back to ai_summary.
     const charCounts = new Map<string, number>();
     for (const n of recent ?? []) {
       const names = extractCharacters(n.ai_summary);
@@ -75,6 +76,21 @@ export async function GET() {
         favCount = count;
         favoriteCharacter = name;
       }
+    }
+    try {
+      const { data: knowledgeCharacters } = await supabase
+        .from("book_entities")
+        .select("name,mention_count")
+        .eq("user_id", user.id)
+        .eq("type", "character")
+        .order("mention_count", { ascending: false })
+        .limit(1);
+      const top = Array.isArray(knowledgeCharacters) ? knowledgeCharacters[0] : null;
+      if (top?.name && Number(top.mention_count || 0) >= favCount) {
+        favoriteCharacter = top.name;
+      }
+    } catch (knowledgeError) {
+      console.error("Failed to read home stats knowledge:", knowledgeError);
     }
 
     // Minimal estimate for reading time this week

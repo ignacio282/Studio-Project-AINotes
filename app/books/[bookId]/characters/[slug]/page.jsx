@@ -1,17 +1,74 @@
 import Link from "next/link";
 import { getServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import CollapsibleRow from "@/components/ui/CollapsibleRow";
-import NoteSnippetCard from "@/components/NoteSnippetCard";
 import BackArrowIcon from "@/components/BackArrowIcon";
 import CharacterProfileMenu from "@/components/CharacterProfileMenu";
+import CharacterProfileSheet from "@/components/CharacterProfileSheet";
 import QaLoadingPage from "@/components/qa/QaLoadingPage";
 import { resolveQaState } from "@/lib/qa/state";
+import { normalizeTrackingMode } from "@/lib/books/progress";
+import { buildCharacterSnapshotFromKnowledge, fetchCharacterKnowledge } from "@/lib/knowledge/read";
 
 export const dynamic = "force-dynamic";
 
-function Placeholder({ label }) {
-  return <span className="type-body text-[var(--color-text-disabled)]">{label}</span>;
+function getTimelineChapters(timeline) {
+  if (!Array.isArray(timeline)) return [];
+  return timeline
+    .map((entry) => Number(entry?.chapterNumber ?? entry?.chapter))
+    .filter((value) => Number.isFinite(value) && value > 0);
+}
+
+function getSnapshotChapters(snapshot) {
+  const sourceChapters = Array.isArray(snapshot?.sources) ? snapshot.sources : [];
+  const timelineChapters = Array.isArray(snapshot?.structured?.timeline)
+    ? snapshot.structured.timeline.map((entry) => Number(entry?.chapterNumber ?? entry?.chapter))
+    : [];
+  return [...sourceChapters, ...timelineChapters]
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0);
+}
+
+function getSnapshotVersion(snapshot) {
+  return Number(snapshot?.structured?.characterSheetVersion) || 0;
+}
+
+function isSnapshotFreshForCharacter(snapshot, character) {
+  if (!snapshot?.created_at) return false;
+  const snapshotTime = new Date(snapshot.created_at).getTime();
+  const characterTime = new Date(character?.updated_at || "").getTime();
+  if (!Number.isFinite(snapshotTime)) return false;
+  if (!Number.isFinite(characterTime)) return true;
+  return snapshotTime >= characterTime;
+}
+
+function buildNoteLinks(notes, bookId) {
+  const links = {};
+  const sorted = Array.isArray(notes) ? notes : [];
+  sorted.forEach((note) => {
+    const chapter = Number(note?.chapter_number);
+    if (!Number.isFinite(chapter) || !note?.id || links[String(chapter)]) return;
+    links[String(chapter)] = `/books/${bookId}/chapters/${chapter}/notes/${note.id}`;
+  });
+  return links;
+}
+
+function buildNoteLinksFromKnowledge(mentions, bookId) {
+  const links = {};
+  const sorted = Array.isArray(mentions) ? mentions : [];
+  sorted.forEach((mention) => {
+    const chapter = Number(mention?.chapter_number);
+    if (!Number.isFinite(chapter) || !mention?.note_id || links[String(chapter)]) return;
+    links[String(chapter)] = `/books/${bookId}/chapters/${chapter}/notes/${mention.note_id}`;
+  });
+  return links;
+}
+
+function noteMentionsCharacter(note, characterName) {
+  const target = typeof characterName === "string" ? characterName.toLowerCase() : "";
+  if (!target) return false;
+  const content = typeof note?.content === "string" ? note.content.toLowerCase() : "";
+  const summary = JSON.stringify(note?.ai_summary ?? {}).toLowerCase();
+  return content.includes(target) || summary.includes(target);
 }
 
 export default async function CharacterProfilePage({ params, searchParams }) {
@@ -22,182 +79,163 @@ export default async function CharacterProfilePage({ params, searchParams }) {
   if (qaState === "error") {
     throw new Error("QA forced error state on Character page.");
   }
+
   const supabase = await getServerSupabase();
   const { data: authData } = await supabase.auth.getUser();
-  if (!authData?.user) {
+  const user = authData?.user;
+  if (!user) {
     redirect("/login");
   }
 
-  const { data, error } = await supabase
-    .from("characters")
-    .select("name,role,short_bio,full_bio,first_chapter,last_chapter,timeline")
-    .eq("book_id", bookId)
-    .eq("slug", slug)
-    .single();
+  const [{ data: book }, characterResponse, snapshotResponse, knowledgeResult] = await Promise.all([
+    supabase
+      .from("books")
+      .select("tracking_mode")
+      .eq("id", bookId)
+      .eq("user_id", user.id)
+      .single(),
+    supabase
+      .from("characters")
+      .select("name,role,short_bio,full_bio,first_chapter,last_chapter,relationships,timeline,updated_at")
+      .eq("book_id", bookId)
+      .eq("slug", slug)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("character_assistant_snapshots")
+      .select("id,user_id,book_id,character_slug,question,answer,structured,sources,max_chapter,created_at")
+      .eq("user_id", user.id)
+      .eq("book_id", bookId)
+      .eq("character_slug", slug)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    fetchCharacterKnowledge(supabase, user.id, bookId, slug).catch((error) => {
+      console.error("Failed to read character knowledge:", error);
+      return null;
+    }),
+  ]);
 
-  const character = qaState === "empty" ? null : error ? null : data;
+  const character = qaState === "empty" ? null : characterResponse.data ?? null;
+  const snapshot = qaState === "empty" ? null : snapshotResponse.data ?? null;
+  const knowledge = qaState === "empty" ? null : knowledgeResult;
+  const knowledgeSnapshot = buildCharacterSnapshotFromKnowledge(knowledge);
+  const trackingMode = normalizeTrackingMode(book?.tracking_mode);
 
-  // Only show the populating badge until a short bio exists.
-  const isPopulating = !(
-    character && typeof character.short_bio === "string" && character.short_bio.trim().length > 0
-  );
+  const knowledgeCharacter = knowledge
+    ? {
+        name: knowledge.entity.name,
+        role: character?.role || knowledge.entity.profile?.role || null,
+        short_bio: knowledge.entity.profile?.summary || character?.short_bio || null,
+        full_bio: character?.full_bio || null,
+        first_chapter: knowledge.entity.first_chapter ?? character?.first_chapter ?? null,
+        last_chapter: knowledge.entity.last_chapter ?? character?.last_chapter ?? null,
+        relationships: knowledge.relationships
+          .map((row) => {
+            const other = row.otherName ? `${row.otherName}: ` : "";
+            return `${other}${row.description || row.label || row.evidence || ""}`.trim();
+          })
+          .filter(Boolean),
+        timeline: knowledge.timeline
+          .map((row) => ({
+            chapterNumber: row.chapter_number,
+            event: row.event_text,
+            noteId: row.note_id,
+          }))
+          .filter((row) => row.event),
+        updated_at: knowledge.entity.updated_at,
+      }
+    : null;
 
-  // Fetch first/last appearance notes if chapters are known
-  let firstNote = null;
-  let lastNote = null;
-  const chapters = [character?.first_chapter, character?.last_chapter]
-    .filter((n) => Number.isFinite(n))
-    .map((n) => Number(n));
-  if (chapters.length) {
+  const chapterCandidates = [
+    knowledgeCharacter?.first_chapter,
+    knowledgeCharacter?.last_chapter,
+    character?.first_chapter,
+    character?.last_chapter,
+    ...getTimelineChapters(knowledgeCharacter?.timeline),
+    ...getTimelineChapters(character?.timeline),
+    ...getSnapshotChapters(knowledgeSnapshot),
+    ...getSnapshotChapters(snapshot),
+  ]
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const chapters = Array.from(new Set(chapterCandidates));
+
+  let notes = [];
+  let noteLinks = knowledge ? buildNoteLinksFromKnowledge(knowledge.mentions, bookId) : {};
+  if (Object.keys(noteLinks).length > 0) {
+    notes = [];
+  } else if (character?.name || knowledgeCharacter?.name) {
     const { data: notesData } = await supabase
       .from("notes")
-      .select("id,content,ai_summary,created_at,chapter_number")
+      .select("id,chapter_number,created_at,content,ai_summary")
       .eq("book_id", bookId)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+    const name = character?.name || knowledgeCharacter?.name;
+    notes = (Array.isArray(notesData) ? notesData : []).filter((note) =>
+      noteMentionsCharacter(note, name),
+    );
+  } else if (chapters.length > 0) {
+    const { data: notesData } = await supabase
+      .from("notes")
+      .select("id,chapter_number,created_at")
+      .eq("book_id", bookId)
+      .eq("user_id", user.id)
       .in("chapter_number", chapters)
-      .order("created_at", { ascending: true });
-    const all = Array.isArray(notesData) ? notesData : [];
-    if (Number.isFinite(character?.first_chapter)) {
-      const list = all.filter((n) => n.chapter_number === character.first_chapter);
-      firstNote = list[0] ?? null;
-    }
-    if (Number.isFinite(character?.last_chapter)) {
-      const list = all.filter((n) => n.chapter_number === character.last_chapter);
-      lastNote = list[list.length - 1] ?? null;
-    }
+      .order("created_at", { ascending: false });
+    notes = Array.isArray(notesData) ? notesData : [];
   }
 
-  return (
-    <div className="mx-auto min-h-screen max-w-2xl space-y-6 bg-[var(--color-page)] px-6 py-8 text-[var(--color-text-main)]">
-      {/* Top bar / back */}
-      <div className="pt-2">
-        <Link
-          href={`/books/${bookId}`}
-          className="inline-flex items-center gap-2 text-[var(--color-text-main)]"
-        >
-          <BackArrowIcon className="h-6 w-6 text-[var(--color-text-main)]" />
-          <span className="sr-only">Back to book</span>
-        </Link>
-      </div>
+  if (Object.keys(noteLinks).length === 0) {
+    noteLinks = buildNoteLinks(notes, bookId);
+  }
+  const snapshotVersion = getSnapshotVersion(snapshot);
+  const displaySnapshot =
+    snapshotVersion >= 5 && isSnapshotFreshForCharacter(snapshot, knowledgeCharacter || character)
+      ? snapshot
+      : knowledgeSnapshot || snapshot;
+  const safeCharacter =
+    knowledgeCharacter ||
+    character || {
+      name: "Unknown",
+      role: null,
+      short_bio: null,
+      full_bio: null,
+      first_chapter: null,
+      last_chapter: null,
+      relationships: [],
+      timeline: [],
+      updated_at: null,
+    };
 
-      {/* Header */}
-      <header className="space-y-2">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="type-h2">
-              {character?.name || "Unknown"}
-            </h1>
-            <div className="type-body text-[var(--color-secondary)]">{character?.role || "Protagonist"}</div>
-          </div>
-          {character ? (
+  return (
+    <div className="min-h-screen bg-[var(--color-page)] text-[var(--color-text-main)]">
+      <header className="sticky top-0 z-40 border-b border-[var(--color-surface)] bg-[var(--color-page)]">
+        <div className="mx-auto flex max-w-2xl items-center justify-between px-6 py-4">
+          <Link href={`/books/${bookId}`} className="text-[var(--color-text-main)]" aria-label="Back to book">
+            <BackArrowIcon className="h-6 w-6 text-[var(--color-text-main)]" />
+          </Link>
+          {character || knowledgeCharacter ? (
             <CharacterProfileMenu
               bookId={bookId}
               slug={slug}
-              name={character?.name || "Character"}
+              name={safeCharacter?.name || "Character"}
             />
           ) : null}
         </div>
-        {isPopulating && (
-          <div className="inline-flex items-center gap-2 rounded-full bg-[var(--color-surface)] px-3 py-1">
-            <svg viewBox="0 0 24 24" className="h-3 w-3 animate-spin text-[var(--color-secondary)]" aria-hidden>
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.3" strokeWidth="3" fill="none" />
-              <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" fill="none" />
-            </svg>
-            <span className="caption">Populating profile from your notes...</span>
-          </div>
-        )}
       </header>
 
-      {/* Bio */}
-      <section className="type-body text-[var(--color-text-main)]">
-        {character?.short_bio ? (
-          character.short_bio
-        ) : character?.full_bio ? (
-          character.full_bio.length > 240 ? character.full_bio.slice(0, 240) + "..." : character.full_bio
-        ) : (
-          <div className="animate-pulse space-y-2">
-            <div className="h-4 w-5/6 rounded bg-[color:var(--rc-color-text-secondary)/20%]" />
-            <div className="h-4 w-4/6 rounded bg-[color:var(--rc-color-text-secondary)/20%]" />
-            <div className="h-4 w-3/6 rounded bg-[color:var(--rc-color-text-secondary)/20%]" />
-            <div className="caption text-[var(--color-secondary)]">Populating short bio...</div>
-          </div>
-        )}
-      </section>
-
-      {/* First/Last appearance card (both collapsed by default) */}
-      <section className="rounded-2xl bg-[var(--color-surface)] p-4">
-        <CollapsibleRow
-          label="First Appearance"
-          value={
-            Number.isFinite(character?.first_chapter)
-              ? `Chapter ${character.first_chapter}`
-              : "-"
-          }
-          defaultOpen={true}
-        >
-          <div className="pt-1">
-            <NoteSnippetCard
-              bookId={bookId}
-              chapter={character?.first_chapter}
-              note={firstNote}
-              showLink={false}
-            />
-          </div>
-        </CollapsibleRow>
-
-        <div className="my-3 h-px bg-[var(--color-secondary)] opacity-20" aria-hidden />
-
-        <CollapsibleRow
-          label="Last seen"
-          value={
-            Number.isFinite(character?.last_chapter)
-              ? `Chapter ${character.last_chapter}`
-              : "-"
-          }
-          defaultOpen={false}
-        >
-          <div className="pt-1">
-            <NoteSnippetCard
-              bookId={bookId}
-              chapter={character?.last_chapter}
-              note={lastNote}
-              showLink={false}
-            />
-          </div>
-        </CollapsibleRow>
-      </section>
-
-      {/* Journey timeline */}
-      <section className="rounded-2xl bg-[var(--color-surface)] p-4">
-        <div
-          className="type-h3 text-[var(--color-text-main)]"
-        >
-          Journey
-        </div>
-        <div className="mt-4 space-y-6">
-          {Array.isArray(character?.timeline) && character.timeline.length > 0 ? (
-            character.timeline.map((t, idx) => (
-              <div key={`${t.chapterNumber}-${idx}`} className="relative pl-7">
-                {/* vertical line */}
-                <span
-                  className="absolute left-2 top-0 h-full w-px bg-[color:var(--rc-color-text-secondary)/30%]"
-                  aria-hidden
-                />
-                {/* dot */}
-                <span
-                  className="absolute left-1.5 top-1 h-3 w-3 rounded-full border border-[color:var(--rc-color-text-secondary)] bg-transparent"
-                  aria-hidden
-                />
-                <div className="caption">Chapter {t.chapterNumber}</div>
-                <div className="type-body mt-1 text-[var(--color-text-main)] italic line-clamp-1">
-                  “{t?.snippet?.replace(/^["“”]+|["“”]+$/g, "").trim()}”
-                </div>
-              </div>
-            ))
-          ) : (
-            <Placeholder label="No appearances yet" />
-          )}
-        </div>
-      </section>
+      <main className="mx-auto max-w-2xl px-6 py-6">
+        <CharacterProfileSheet
+          bookId={bookId}
+          slug={slug}
+          character={safeCharacter}
+          initialSnapshot={displaySnapshot}
+          trackingMode={trackingMode}
+          noteLinks={noteLinks}
+        />
+      </main>
     </div>
   );
 }

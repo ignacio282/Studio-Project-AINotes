@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireUser } from "@/lib/supabase/require-user";
 import { findClosestNameMatch, normalizeEntityName } from "@/lib/entities/name-match";
+import { syncNoteKnowledge } from "@/lib/knowledge/sync";
 
 export const runtime = "nodejs";
 
@@ -166,6 +167,20 @@ export async function PATCH(
       }
     } catch (memoryError) {
       console.error("Failed to update chapter memory:", memoryError);
+    }
+
+    try {
+      await syncNoteKnowledge({
+        supabase,
+        userId,
+        bookId: data.book_id,
+        noteId: data.id,
+        chapterNumber: Number(data.chapter_number),
+        content: typeof data.content === "string" ? data.content : "",
+        aiSummary: data.ai_summary,
+      });
+    } catch (knowledgeError) {
+      console.error("Failed to sync note into book knowledge:", knowledgeError);
     }
 
     const typoSuggestions: TypoSuggestion[] = [];
@@ -374,7 +389,7 @@ export async function POST(
 
     const { data: note, error: noteError } = await supabase
       .from("notes")
-      .select("id,book_id,chapter_number,ai_summary")
+      .select("id,book_id,chapter_number,content,ai_summary")
       .eq("id", noteId)
       .single();
     if (noteError) throw noteError;
@@ -442,6 +457,20 @@ export async function POST(
           { onConflict: "book_id,chapter_number" },
         );
 
+      try {
+        await syncNoteKnowledge({
+          supabase,
+          userId,
+          bookId: note.book_id,
+          noteId,
+          chapterNumber,
+          content: typeof note.content === "string" ? note.content : "",
+          aiSummary: updatedSummary,
+        });
+      } catch (knowledgeError) {
+        console.error("Failed to sync typo resolution into book knowledge:", knowledgeError);
+      }
+
       return Response.json({
         ok: true,
         decision,
@@ -473,6 +502,20 @@ export async function POST(
         },
         { onConflict: "book_id,slug" },
       );
+
+    try {
+      await syncNoteKnowledge({
+        supabase,
+        userId,
+        bookId: note.book_id,
+        noteId,
+        chapterNumber,
+        content: typeof note.content === "string" ? note.content : "",
+        aiSummary: note.ai_summary,
+      });
+    } catch (knowledgeError) {
+      console.error("Failed to sync new character into book knowledge:", knowledgeError);
+    }
 
     try {
       const origin = req.nextUrl.origin;
