@@ -5,9 +5,10 @@ import BookChapterStartSheet from "@/components/BookChapterStartSheet";
 import BackArrowIcon from "@/components/BackArrowIcon";
 import BookHubTabs from "@/components/BookHubTabs";
 import QaLoadingPage from "@/components/qa/QaLoadingPage";
+import MissingResourcePage from "@/components/errors/MissingResourcePage";
 import { resolveQaState } from "@/lib/qa/state";
 import { normalizeTrackingMode } from "@/lib/books/progress";
-import { fetchBookKnowledgeEntities } from "@/lib/knowledge/read";
+import { fetchBookKnowledgeEntities, slugifyPlaceName } from "@/lib/knowledge/read";
 
 function CalendarIcon({ className }) {
   return (
@@ -48,6 +49,12 @@ function slugifyName(name) {
     .replace(/[^a-z0-9\s-]/g, "")
     .trim()
     .replace(/\s+/g, "-");
+}
+
+function placeEntry(name, slug) {
+  const safeName = typeof name === "string" ? name.trim() : "";
+  const safeSlug = typeof slug === "string" && slug.trim() ? slug.trim() : slugifyPlaceName(safeName);
+  return safeName ? { name: safeName, slug: safeSlug } : null;
 }
 
 function formatDate(iso) {
@@ -131,7 +138,10 @@ function extractEntities(notes) {
 
   return {
     characters: Array.from(characterMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
-    places: Array.from(placeSet).sort((a, b) => a.localeCompare(b)),
+    places: Array.from(placeSet)
+      .map((place) => placeEntry(place))
+      .filter(Boolean)
+      .sort((a, b) => a.name.localeCompare(b.name)),
   };
 }
 
@@ -156,18 +166,32 @@ export default async function BookHubPage({ params, searchParams }) {
     .from("books")
     .select("id,title,author,cover_url,total_chapters,total_pages,tracking_mode,created_at")
     .eq("id", bookId)
-    .single();
+    .eq("user_id", authData.user.id)
+    .maybeSingle();
+
+  if (!book) {
+    return (
+      <MissingResourcePage
+        title="Book not found"
+        message="This book may have been removed, or it may belong to another Scriba account."
+        actionHref="/library"
+        actionLabel="Back to library"
+      />
+    );
+  }
 
   const { data: notesData } = await supabase
     .from("notes")
     .select("id,chapter_number,content,ai_summary,created_at")
     .eq("book_id", bookId)
+    .eq("user_id", authData.user.id)
     .order("created_at", { ascending: false });
 
   const { data: charactersData } = await supabase
     .from("characters")
     .select("id,slug,name")
     .eq("book_id", bookId)
+    .eq("user_id", authData.user.id)
     .order("name", { ascending: true });
 
   const notes = qaState === "empty" ? [] : Array.isArray(notesData) ? notesData : [];
@@ -193,8 +217,9 @@ export default async function BookHubPage({ params, searchParams }) {
     }));
   const knowledgePlaces = knowledgeEntities
     .filter((entity) => entity.type === "place")
-    .map((entity) => entity.name)
-    .sort((a, b) => a.localeCompare(b));
+    .map((entity) => placeEntry(entity.name, entity.slug))
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name));
   const noteCharacters = knowledgeCharacters.length > 0 ? knowledgeCharacters : extracted.characters;
   const places = knowledgePlaces.length > 0 ? knowledgePlaces : extracted.places;
   const charCount = noteCharacters.length || characters.length;

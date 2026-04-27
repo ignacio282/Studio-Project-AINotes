@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import BackArrowIcon from "@/components/BackArrowIcon";
 import BookAssistantChat from "@/components/BookAssistantChat";
 import QaLoadingPage from "@/components/qa/QaLoadingPage";
+import MissingResourcePage from "@/components/errors/MissingResourcePage";
 import { resolveQaState } from "@/lib/qa/state";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +26,19 @@ export default async function BookAssistantPage({ params, searchParams }) {
     .from("books")
     .select("id,title,author,tracking_mode")
     .eq("id", bookId)
-    .single();
+    .eq("user_id", authData.user.id)
+    .maybeSingle();
+
+  if (!book) {
+    return (
+      <MissingResourcePage
+        title="Book not found"
+        message="This assistant can only open books from the signed-in account."
+        actionHref="/library"
+        actionLabel="Back to library"
+      />
+    );
+  }
 
   return (
     <div className="assistant-page">

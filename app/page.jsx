@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import BackArrowIcon from "@/components/BackArrowIcon";
+import { getFriendlyErrorMessage } from "@/lib/errors/user-facing";
 import {
   TRACKING_MODES,
   formatProgressLabel,
@@ -1055,7 +1056,7 @@ async function requestReflectionQuestion({
     try {
       const errorBody = await response.json();
       if (errorBody?.error) {
-        message = errorBody.error;
+        message = getFriendlyErrorMessage(errorBody.error, message);
       }
     } catch {
       // ignore parse errors
@@ -2503,7 +2504,7 @@ export default function JournalingPage(props) {
         let message = "Unable to update notes right now.";
         try {
           const err = await res.json();
-          if (err?.error) message = err.error;
+          if (err?.error) message = getFriendlyErrorMessage(err.error, message);
         } catch {
           // ignore JSON parse errors
         }
@@ -2577,7 +2578,7 @@ export default function JournalingPage(props) {
         return;
       }
       console.error("Summary update failed", error);
-      setSummaryError(error instanceof Error ? error.message : "Something went wrong while updating notes.");
+      setSummaryError(getFriendlyErrorMessage(error, "Unable to update notes right now. Your draft is still here."));
     } finally {
       if (aiControllerRef.current === controller) {
         aiControllerRef.current = null;
@@ -2793,7 +2794,7 @@ export default function JournalingPage(props) {
         try {
           const err = await res.json();
           if (err?.error) {
-            message = err.error;
+            message = getFriendlyErrorMessage(err.error, message);
           }
         } catch {
           // ignore parse errors
@@ -3074,7 +3075,7 @@ export default function JournalingPage(props) {
           try {
             const err = await res.json();
             if (err?.error) {
-              messageText = err.error;
+              messageText = getFriendlyErrorMessage(err.error, messageText);
             }
           } catch {
             // ignore parsing errors
@@ -3124,9 +3125,7 @@ export default function JournalingPage(props) {
             id: safeUuid(),
             role: "ai",
             content:
-              error instanceof Error
-                ? error.message
-                : "Unable to resolve that name right now.",
+              getFriendlyErrorMessage(error, "Unable to resolve that name right now."),
             createdAt: new Date().toISOString(),
           },
         ]);

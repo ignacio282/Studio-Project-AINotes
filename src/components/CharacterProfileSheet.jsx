@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   BookOpen,
   CalendarDays,
@@ -15,7 +16,9 @@ import {
   Sparkles,
   TrendingUp,
 } from "lucide-react";
+import ActionBottomSheet from "@/components/ui/ActionBottomSheet";
 import { formatProgressLabel, normalizeTrackingMode } from "@/lib/books/progress";
+import { getFriendlyErrorMessage } from "@/lib/errors/user-facing";
 
 function toStringList(value) {
   if (typeof value === "string") {
@@ -191,13 +194,38 @@ function ProfileSection({ title, icon: Icon, tone = "default", children }) {
   );
 }
 
-function SectionSkeleton() {
+function EntityLoadingState({ title = "Building profile..." }) {
   return (
-    <div className="space-y-3">
-      <div className="h-4 w-11/12 animate-pulse rounded bg-[color:var(--rc-color-text-secondary)/18%]" />
-      <div className="h-4 w-9/12 animate-pulse rounded bg-[color:var(--rc-color-text-secondary)/14%]" />
-      <div className="h-4 w-7/12 animate-pulse rounded bg-[color:var(--rc-color-text-secondary)/12%]" />
-    </div>
+    <section className="p-8 text-center">
+      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-[8px] bg-[var(--color-accent-subtle)] text-[var(--color-text-accent)]">
+        <Sparkles className="h-5 w-5 animate-pulse" aria-hidden="true" />
+      </div>
+      <h2 className="type-title mt-4 text-[var(--color-text-main)]">{title}</h2>
+      <p className="type-body mx-auto mt-2 max-w-[34ch] text-[var(--color-secondary)]">
+        Scriba is reading your saved notes and preparing a cleaner profile.
+      </p>
+    </section>
+  );
+}
+
+function SparseProfileState({ characterName, onDelete }) {
+  return (
+    <section className="rounded-[8px] bg-[var(--color-surface)] p-8 text-center">
+      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-[8px] bg-[var(--color-page)] text-[var(--color-text-accent)]">
+        <BookOpen className="h-5 w-5" aria-hidden="true" />
+      </div>
+      <h2 className="type-title mt-4 text-[var(--color-text-main)]">Not enough information yet</h2>
+      <p className="type-body mx-auto mt-2 max-w-[38ch] text-[var(--color-secondary)]">
+        Write more about {characterName || "this character"} in your notes if you would like to see their role, relationships, motivations, and timeline here.
+      </p>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="type-button mt-5 rounded-[8px] bg-[var(--color-page)] px-4 py-2 text-[var(--color-secondary)] transition hover:text-[var(--color-text-main)]"
+      >
+        Delete this character
+      </button>
+    </section>
   );
 }
 
@@ -393,11 +421,15 @@ export default function CharacterProfileSheet({
   trackingMode,
   noteLinks,
 }) {
+  const router = useRouter();
   const normalizedTrackingMode = normalizeTrackingMode(trackingMode);
   const [snapshot, setSnapshot] = useState(() => normalizeSnapshot(initialSnapshot));
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateError, setUpdateError] = useState("");
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const requestedSnapshotRef = useRef(false);
 
   const structured = snapshot?.structured ?? {};
@@ -421,13 +453,14 @@ export default function CharacterProfileSheet({
     cleanRoleLabel(structured.roleLabel, character?.name) ||
     cleanRoleLabel(character?.role, character?.name) ||
     "Role not clear yet";
-  const richFieldCount =
-    (structured.traits?.length || 0) +
-    (structured.motivations?.length || 0) +
-    (structured.distinctives?.length || 0) +
-    (structured.relationships?.length || 0) +
-    (structured.evidence?.length || 0);
-  const showSheetSkeleton = isUpdating && richFieldCount === 0;
+  const showProfileLoading = isUpdating;
+  const hasUsefulProfile =
+    Boolean(structured.roleInStory || structured.developmentArc) ||
+    (structured.traits?.length || 0) > 0 ||
+    (structured.motivations?.length || 0) > 0 ||
+    (structured.relationships?.length || 0) > 0 ||
+    (baseRelationships.length || 0) > 0 ||
+    (structured.timeline?.length || fallbackTimeline.length || 0) > 1;
   const shouldGenerate = useMemo(() => {
     if (!bookId || !slug) return false;
     if (structured.characterSheetVersion < 5) return true;
@@ -464,7 +497,7 @@ export default function CharacterProfileSheet({
   ]);
 
   useEffect(() => {
-    if (!shouldGenerate || isUpdating || requestedSnapshotRef.current) return;
+    if (!shouldGenerate || requestedSnapshotRef.current) return;
     let active = true;
     requestedSnapshotRef.current = true;
     const generate = async () => {
@@ -479,7 +512,7 @@ export default function CharacterProfileSheet({
           let message = "Unable to update character profile.";
           try {
             const payload = await response.json();
-            if (payload?.error) message = payload.error;
+            if (payload?.error) message = getFriendlyErrorMessage(payload.error, message);
           } catch {}
           throw new Error(message);
         }
@@ -490,7 +523,7 @@ export default function CharacterProfileSheet({
         }
       } catch (error) {
         if (active) {
-          setUpdateError(error instanceof Error ? error.message : "Unable to update character profile.");
+          setUpdateError(getFriendlyErrorMessage(error, "Unable to update character profile right now."));
         }
       } finally {
         if (active) {
@@ -502,7 +535,35 @@ export default function CharacterProfileSheet({
     return () => {
       active = false;
     };
-  }, [bookId, slug, shouldGenerate, isUpdating]);
+  }, [bookId, slug, shouldGenerate]);
+
+  const handleDeleteCharacter = async () => {
+    if (!bookId || !slug || isDeleting) return;
+
+    try {
+      setIsDeleting(true);
+      setDeleteError("");
+      const response = await fetch(
+        `/api/characters/${encodeURIComponent(bookId)}/${encodeURIComponent(slug)}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok) {
+        let message = "Unable to delete this character.";
+        try {
+          const payload = await response.json();
+          if (typeof payload?.error === "string" && payload.error.trim()) message = payload.error;
+        } catch {}
+        throw new Error(message);
+      }
+      setConfirmingDelete(false);
+      router.push(`/books/${bookId}`);
+      router.refresh();
+    } catch (error) {
+      setDeleteError(getFriendlyErrorMessage(error, "Unable to delete this character right now."));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="space-y-5 pb-8">
@@ -521,12 +582,6 @@ export default function CharacterProfileSheet({
               {role}
             </div>
           </div>
-          {isUpdating ? (
-            <div className="type-caption inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--color-page)] px-3 py-1 text-[var(--color-secondary)]">
-              <Clock3 className="h-3 w-3 text-[var(--color-text-accent)]" aria-hidden="true" />
-              Updating...
-            </div>
-          ) : null}
         </div>
 
         <p className="type-body mt-5 max-w-[62ch] text-[var(--color-text-main)]">{summary}</p>
@@ -556,42 +611,72 @@ export default function CharacterProfileSheet({
         </div>
       </section>
 
+      {showProfileLoading ? <EntityLoadingState title="Building character profile..." /> : null}
+
+      {!showProfileLoading && !hasUsefulProfile ? (
+        <SparseProfileState characterName={character?.name} onDelete={() => setConfirmingDelete(true)} />
+      ) : null}
+
+      {!showProfileLoading && hasUsefulProfile ? (
+        <>
       <ProfileSection title="Role in the story" icon={BookOpen} tone="accent">
-        {showSheetSkeleton ? <SectionSkeleton /> : <TextBlock text={structured.roleInStory} />}
+        <TextBlock text={structured.roleInStory} />
       </ProfileSection>
 
       <ProfileSection title="Key relationships" icon={HeartHandshake}>
-        {showSheetSkeleton ? (
-          <SectionSkeleton />
-        ) : (
-          <RelationshipCards items={structured.relationships || []} fallbackItems={baseRelationships} />
-        )}
+        <RelationshipCards items={structured.relationships || []} fallbackItems={baseRelationships} />
       </ProfileSection>
 
       <ProfileSection title="How they're changing" icon={TrendingUp} tone="accent">
-        {showSheetSkeleton ? <SectionSkeleton /> : <TextBlock text={structured.developmentArc} />}
+        <TextBlock text={structured.developmentArc} />
       </ProfileSection>
 
       <ProfileSection title="Traits" icon={Sparkles}>
-        {showSheetSkeleton ? <SectionSkeleton /> : <LabeledList items={structured.traits || []} />}
+        <LabeledList items={structured.traits || []} />
       </ProfileSection>
 
       <ProfileSection title="Motivations" icon={Shield}>
-        {showSheetSkeleton ? <SectionSkeleton /> : <LabeledList items={structured.motivations || []} />}
+        <LabeledList items={structured.motivations || []} />
       </ProfileSection>
 
       <ProfileSection title="What they've been doing" icon={Route}>
-        {showSheetSkeleton ? (
-          <SectionSkeleton />
-        ) : (
-          <Timeline
-            items={structured.timeline || []}
-            fallbackItems={fallbackTimeline}
-            noteLinks={noteLinks}
-            trackingMode={normalizedTrackingMode}
-          />
-        )}
+        <Timeline
+          items={structured.timeline || []}
+          fallbackItems={fallbackTimeline}
+          noteLinks={noteLinks}
+          trackingMode={normalizedTrackingMode}
+        />
       </ProfileSection>
+        </>
+      ) : null}
+
+      <ActionBottomSheet
+        open={confirmingDelete || Boolean(deleteError)}
+        onClose={() => {
+          if (isDeleting) return;
+          setConfirmingDelete(false);
+          setDeleteError("");
+        }}
+        title={deleteError || `Delete ${character?.name || "this character"}?`}
+        actions={[
+          {
+            id: "confirm-delete-character",
+            label: isDeleting ? "Deleting character..." : "Delete permanently",
+            onClick: handleDeleteCharacter,
+            disabled: isDeleting,
+            destructive: true,
+          },
+          {
+            id: "keep-character",
+            label: "Keep character",
+            onClick: () => {
+              setConfirmingDelete(false);
+              setDeleteError("");
+            },
+            disabled: isDeleting,
+          },
+        ]}
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import AppBottomNav from "@/components/navigation/AppBottomNav";
 import SignOutButton from "@/components/SignOutButton";
 import { fetchBooksDashboardData } from "@/lib/books/dashboard-data";
@@ -53,17 +54,6 @@ function AddIcon({ className = "" }) {
   );
 }
 
-function ChevronForwardIcon({ className = "" }) {
-  return (
-    <svg viewBox="0 0 20 20" className={className} aria-hidden>
-      <path
-        fill="currentColor"
-        d="M7.22 4.47a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 1 1-1.06-1.06L10.94 10 7.22 6.28a.75.75 0 0 1 0-1.06Z"
-      />
-    </svg>
-  );
-}
-
 function formatDate(isoDate) {
   if (!isoDate) return "";
   const value = new Date(isoDate);
@@ -81,12 +71,15 @@ function formatPercent(value) {
   return Math.min(100, Math.max(0, Math.round(parsed)));
 }
 
-function pairCharacters(items) {
-  const pairs = [];
-  for (let i = 0; i < items.length; i += 2) {
-    pairs.push(items.slice(i, i + 2));
-  }
-  return pairs;
+function hasCharacterDetail(character) {
+  const role = typeof character?.role === "string" ? character.role.trim().toLowerCase() : "";
+  const summary = typeof character?.summary === "string" ? character.summary.trim().toLowerCase() : "";
+  const subtitle = typeof character?.subtitle === "string" ? character.subtitle.trim().toLowerCase() : "";
+  return Boolean(
+    (role && role !== "role still forming") ||
+      (summary && summary !== "mentioned in your notes.") ||
+      (subtitle && subtitle !== "mentioned in your notes."),
+  );
 }
 
 function ActionLink({ href, icon, label, ariaLabel }) {
@@ -138,12 +131,13 @@ export default async function HomePage({ searchParams }) {
   const storySoFar = hasCurrentBook
     ? effectiveCurrentBook?.storySoFar?.trim() || "No reading summary yet. Write a note to build your story summary."
     : "Your reading summaries will appear here after you add a book and write your first note.";
+  const storyContext = effectiveCurrentBook?.storyContext || {};
+  const contextCharacters = Array.isArray(storyContext.characters) ? storyContext.characters.filter(Boolean).slice(0, 3) : [];
   const baseCharacters =
     hasCurrentBook && Array.isArray(effectiveCurrentBook?.topCharacters) && effectiveCurrentBook.topCharacters.length > 0
       ? effectiveCurrentBook.topCharacters.slice(0, 4)
       : [];
   const topCharacters = baseCharacters.slice(0, 4);
-  const characterRows = pairCharacters(topCharacters);
   const coverSrc = effectiveCurrentBook?.cover_url || "";
   const canShowProgress =
     hasCurrentBook &&
@@ -269,15 +263,35 @@ export default async function HomePage({ searchParams }) {
             <section className="px-6 py-4">
               <div className="space-y-1">
                 <h2 className="type-h3 text-[#2A2A2A]">
-                  Progress
+                  Where you are
                 </h2>
                 <p className="type-caption text-[#A19F99]">
-                  {daysAgoLabel}
+                  Your current story position
                 </p>
               </div>
-
               <div className="mt-4 rounded-[8px] bg-[#F0EEE5] px-4 pb-6 pt-4">
-                <p className="type-body text-[#2A2A2A]">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-[5px] bg-[#FAF9F5] px-3 py-3">
+                    <div className="type-caption text-[#A19F99]">Last saved position</div>
+                    <div className="type-title mt-1 text-[#2A2A2A]">
+                      {storyContext.progressLabel || "Not logged yet"}
+                    </div>
+                  </div>
+                  <div className="rounded-[5px] bg-[#FAF9F5] px-3 py-3">
+                    <div className="type-caption text-[#A19F99]">Latest setting from notes</div>
+                    <div className="type-title mt-1 truncate text-[#2A2A2A]">
+                      {storyContext.setting || "Not clear yet"}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 rounded-[5px] bg-[#FAF9F5] px-3 py-3">
+                  <div className="type-caption text-[#A19F99]">Characters active in recent notes</div>
+                  <div className="type-body mt-1 text-[#2A2A2A]">
+                    {contextCharacters.length ? contextCharacters.join(", ") : "Characters will appear here after more notes."}
+                  </div>
+                </div>
+
+                <p className="type-body mt-4 text-[#2A2A2A]">
                   {canShowProgress
                     ? getProgressProgressText(trackingMode, lastProgressValue, totalProgressValue)
                     : getProgressEmptyText(trackingMode)}
@@ -290,36 +304,50 @@ export default async function HomePage({ searchParams }) {
                     {progressPercent}%
                   </div>
                 </div>
+                <p className="type-caption mt-3 text-[#A19F99]">
+                  {daysAgoLabel}
+                </p>
               </div>
             </section>
 
             <section className="px-6 py-4 pb-32">
               <div className="space-y-1">
                 <h2 className="type-h3 text-[#2A2A2A]">
-                  Important characters
+                  Characters to remember
                 </h2>
                 <p className="type-caption text-[#A19F99]">
-                  Characters that appear the most
+                  People shaping the story right now
                 </p>
               </div>
 
-              <div className="mt-4 space-y-2">
-                {characterRows.length > 0 ? (
-                  characterRows.map((row, rowIndex) => (
-                    <div key={`row-${rowIndex}`} className="grid grid-cols-2 gap-2">
-                      {row.map((character) => {
+              <div className="mt-4 space-y-4">
+                {topCharacters.length > 0 ? (
+                  topCharacters.map((character) => {
                         const key = character.slug || character.name;
+                        const hasDetail = hasCharacterDetail(character);
                         const tile = (
-                          <div className="flex items-center justify-center gap-2 rounded-[5px] bg-[#F0EEE5] px-4 py-2">
+                          <div className="flex items-center gap-3 rounded-[8px] bg-[#F0EEE5] px-4 py-3">
                             <div className="min-w-0 flex-1">
-                              <div className="type-title truncate text-[#2F2F2F]">
-                                {character.name}
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="type-title truncate text-[#2F2F2F]">
+                                  {character.name}
+                                </div>
+                                {Number(character.mentions) > 0 ? (
+                                  <div className="type-caption shrink-0 rounded-full bg-[#FAF9F5] px-2 py-0.5 text-[#595853]">
+                                    {character.mentions} mentions
+                                  </div>
+                                ) : null}
                               </div>
-                              <p className="type-caption truncate text-[#595853]">
-                                {character.subtitle || "Mentioned in your notes."}
+                              <p className="type-caption mt-1 text-[#595853]">
+                                {hasDetail ? character.role || "Story role" : "Not enough detail yet"}
+                              </p>
+                              <p className="type-body mt-2 line-clamp-2 text-[#2A2A2A]">
+                                {hasDetail
+                                  ? character.summary || character.subtitle
+                                  : `Write more about ${character.name} to unlock their role, relationships, and timeline.`}
                               </p>
                             </div>
-                            <ChevronForwardIcon className="h-5 w-5 shrink-0 text-[#595853]" />
+                            <ChevronRight className="h-5 w-5 shrink-0 text-[#595853]" aria-hidden="true" />
                           </div>
                         );
 
@@ -328,6 +356,7 @@ export default async function HomePage({ searchParams }) {
                             <Link
                               key={key}
                               href={`/books/${encodeURIComponent(effectiveCurrentBook.id)}/characters/${encodeURIComponent(character.slug)}`}
+                              className="block"
                             >
                               {tile}
                             </Link>
@@ -339,9 +368,7 @@ export default async function HomePage({ searchParams }) {
                             {tile}
                           </div>
                         );
-                      })}
-                    </div>
-                  ))
+                      })
                 ) : (
                   <div className="type-body rounded-[8px] bg-[#F0EEE5] px-4 py-5 text-[#595853]">
                     Important characters will show up here once they are mentioned in your notes.

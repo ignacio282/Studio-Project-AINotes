@@ -253,8 +253,7 @@ Craft the next single question now.
 
     return Response.json({ question });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to generate a reflection question right now.";
     console.error("/api/reflection-question error:", error);
-    return new Response(JSON.stringify({ error: message }), { status: 500 });
+    return new Response(JSON.stringify({ error: "Unable to generate a reflection question right now." }), { status: 500 });
   }
 }

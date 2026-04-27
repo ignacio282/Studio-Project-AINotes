@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getBrowserSupabase } from "@/lib/supabase/client";
 import BackArrowIcon from "@/components/BackArrowIcon";
+import { getFriendlyErrorMessage } from "@/lib/errors/user-facing";
 import {
   TRACKING_MODES,
   getProgressSetupTotalLabel,
@@ -131,7 +132,7 @@ function NewBookPageContent() {
         setResults(list);
       } catch (err) {
         if (controller.signal.aborted) return;
-        setSearchError(err instanceof Error ? err.message : "Search failed");
+        setSearchError(getFriendlyErrorMessage(err, "Book search is unavailable right now. You can enter the book manually."));
       } finally {
         if (!controller.signal.aborted) {
           setLoading(false);
@@ -330,7 +331,7 @@ function NewBookPageContent() {
         router.push("/home");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to create book");
+      setError(getFriendlyErrorMessage(err, "Unable to add this book right now. Check the details and try again."));
     } finally {
       setSubmitting(false);
     }
@@ -433,7 +434,21 @@ function NewBookPageContent() {
             {!loading && !canSearch ? (
               <p className="type-caption text-[var(--color-secondary)]">Enter at least 2 characters to search.</p>
             ) : null}
-            {searchError ? <p className="type-caption text-red-700">{searchError}</p> : null}
+            {searchError ? (
+              <div className="rounded-lg bg-red-50 px-3 py-2">
+                <p className="type-caption text-red-700">{searchError}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchError("");
+                    setStep(STEPS.search);
+                  }}
+                  className="type-button mt-1 text-[var(--color-text-accent)]"
+                >
+                  Search again
+                </button>
+              </div>
+            ) : null}
             {!loading && canSearch && !searchError && results.length === 0 ? (
               <p className="type-caption text-[var(--color-secondary)]">No matches found.</p>
             ) : null}

@@ -146,9 +146,13 @@ export async function PATCH(
       .from("notes")
       .update({ ai_summary: aiSummary })
       .eq("id", id)
+      .eq("user_id", userId)
       .select("id,book_id,chapter_number,content,ai_summary")
-      .single();
+      .maybeSingle();
     if (error) throw error;
+    if (!data) {
+      return new Response(JSON.stringify({ error: "Note not found" }), { status: 404 });
+    }
 
     try {
       if (data?.book_id && Number.isFinite(data?.chapter_number)) {
@@ -199,7 +203,8 @@ export async function PATCH(
         const { data: existingRows } = await supabase
           .from("characters")
           .select("slug,name,short_bio,first_chapter,last_chapter")
-          .eq("book_id", bookId);
+          .eq("book_id", bookId)
+          .eq("user_id", userId);
 
         const existing = (Array.isArray(existingRows) ? existingRows : []) as CharacterRow[];
         const bySlug = new Map(
@@ -391,7 +396,8 @@ export async function POST(
       .from("notes")
       .select("id,book_id,chapter_number,content,ai_summary")
       .eq("id", noteId)
-      .single();
+      .eq("user_id", userId)
+      .maybeSingle();
     if (noteError) throw noteError;
     if (!note?.book_id) {
       return new Response(JSON.stringify({ error: "Note not found" }), { status: 404 });
@@ -412,7 +418,8 @@ export async function POST(
         .select("slug,name,first_chapter,last_chapter")
         .eq("book_id", note.book_id)
         .eq("slug", matchedSlug)
-        .single();
+        .eq("user_id", userId)
+        .maybeSingle();
 
       const firstChapter = Number(existingCharacter?.first_chapter);
       const lastChapter = Number(existingCharacter?.last_chapter);
@@ -442,7 +449,8 @@ export async function POST(
       await supabase
         .from("notes")
         .update({ ai_summary: updatedSummary })
-        .eq("id", noteId);
+        .eq("id", noteId)
+        .eq("user_id", userId);
 
       await supabase
         .from("book_chapter_memory")

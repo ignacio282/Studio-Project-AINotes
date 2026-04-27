@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { getFriendlyErrorMessage } from "@/lib/errors/user-facing";
 
 function BookCard({ book, isCurrent, onSelect, isSubmitting }) {
   return (
@@ -80,7 +81,7 @@ export default function SwitchBooksClient({ currentBookId = "", books = [] }) {
       router.push("/home");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to switch current book.");
+      setError(getFriendlyErrorMessage(err, "Unable to switch current book right now."));
       setSubmittingId("");
     }
   };

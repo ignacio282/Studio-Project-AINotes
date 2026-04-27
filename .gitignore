@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/tmp/
 
 # next.js
 /.next/
@@ -20,6 +21,7 @@
 
 # production
 /build
+/output/
 
 # misc
 .DS_Store
@@ -30,6 +32,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+.codex-dev*.log
+
+# generated QA output
+qa-seed-output.txt
 
 # env files (can opt-in for committing if needed)
 .env*
