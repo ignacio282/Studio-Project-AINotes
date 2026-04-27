@@ -203,6 +203,7 @@ textarea {
   font-size: var(--type-h2-size);
   line-height: var(--type-h2-line-height);
   font-weight: var(--type-h2-weight);
+  overflow-wrap: anywhere;
 }
 
 .assistant-subtitle {
@@ -263,6 +264,7 @@ textarea {
   font-weight: var(--type-body-weight);
   line-height: var(--type-body-line-height);
   color: var(--color-text-main);
+  overflow-wrap: anywhere;
 }
 
 .assistant-message.assistant-message--assistant {
@@ -294,6 +296,7 @@ textarea {
 .assistant-section-list {
   margin-top: 6px;
   padding-left: 18px;
+  overflow-wrap: anywhere;
 }
 
 .assistant-sources {

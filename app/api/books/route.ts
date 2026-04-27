@@ -42,6 +42,7 @@ export async function GET() {
       const resp = await supabase
         .from("books")
         .select("id,title,author,publisher,total_chapters,total_pages,tracking_mode,cover_url,status,created_at")
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
       data = (resp.data ?? null) as BookRow[] | null;
       error = resp.error;
@@ -50,6 +51,7 @@ export async function GET() {
       const resp = await supabase
         .from("books")
         .select("id,title,author,created_at")
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
       if (resp.error) throw resp.error;
       data = (resp.data ?? null) as BookRow[] | null;

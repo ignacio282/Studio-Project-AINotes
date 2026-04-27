@@ -85,7 +85,8 @@ export async function GET(
       .select("id,book_id,slug,name,role,short_bio,full_bio,first_chapter,last_chapter,relationships,timeline,updated_at")
       .eq("book_id", bookId)
       .eq("slug", slug)
-      .single();
+      .eq("user_id", user.id)
+      .maybeSingle();
     if (error) throw error;
     if (!data) {
       return new Response(JSON.stringify({ error: "Character not found" }), { status: 404 });

@@ -5,6 +5,7 @@ import BackArrowIcon from "@/components/BackArrowIcon";
 import CharacterProfileMenu from "@/components/CharacterProfileMenu";
 import CharacterProfileSheet from "@/components/CharacterProfileSheet";
 import QaLoadingPage from "@/components/qa/QaLoadingPage";
+import MissingResourcePage from "@/components/errors/MissingResourcePage";
 import { resolveQaState } from "@/lib/qa/state";
 import { normalizeTrackingMode } from "@/lib/books/progress";
 import { buildCharacterSnapshotFromKnowledge, fetchCharacterKnowledge } from "@/lib/knowledge/read";
@@ -119,6 +120,26 @@ export default async function CharacterProfilePage({ params, searchParams }) {
   const character = qaState === "empty" ? null : characterResponse.data ?? null;
   const snapshot = qaState === "empty" ? null : snapshotResponse.data ?? null;
   const knowledge = qaState === "empty" ? null : knowledgeResult;
+  if (qaState !== "empty" && !book) {
+    return (
+      <MissingResourcePage
+        title="Book not found"
+        message="This character page can only open books from the signed-in account."
+        actionHref="/library"
+        actionLabel="Back to library"
+      />
+    );
+  }
+  if (qaState !== "empty" && !character && !knowledge) {
+    return (
+      <MissingResourcePage
+        title="Character not found"
+        message="This character may have been removed, or Scriba may need more notes before building the profile."
+        actionHref={`/books/${bookId}`}
+        actionLabel="Back to book"
+      />
+    );
+  }
   const knowledgeSnapshot = buildCharacterSnapshotFromKnowledge(knowledge);
   const trackingMode = normalizeTrackingMode(book?.tracking_mode);
 

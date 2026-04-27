@@ -7,6 +7,7 @@ import {
   formatProgressSources,
   normalizeTrackingMode,
 } from "@/lib/books/progress";
+import { getFriendlyErrorMessage } from "@/lib/errors/user-facing";
 
 function safeId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -155,6 +156,7 @@ export default function BookAssistantChat({ bookId, trackingMode, qaState = null
   const [promptSaving, setPromptSaving] = useState(false);
   const [entities, setEntities] = useState([]);
   const [scopeChapter, setScopeChapter] = useState(null);
+  const [lastFailedQuestion, setLastFailedQuestion] = useState("");
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -257,13 +259,15 @@ export default function BookAssistantChat({ bookId, trackingMode, qaState = null
     });
   };
 
-  const sendMessage = async () => {
-    const trimmed = inputValue.trim();
+  const sendMessage = async (retryQuestion = "") => {
+    const trimmed = (retryQuestion || inputValue).trim();
     if (!trimmed || isLoading) return;
 
-    const userMessage = { id: safeId(), role: "user", content: trimmed };
-    setMessages((prev) => [...prev, userMessage]);
-    setInputValue("");
+    if (!retryQuestion) {
+      const userMessage = { id: safeId(), role: "user", content: trimmed };
+      setMessages((prev) => [...prev, userMessage]);
+      setInputValue("");
+    }
 
     if (qaState === "empty") {
       setMessages((prev) => [
@@ -326,16 +330,18 @@ export default function BookAssistantChat({ bookId, trackingMode, qaState = null
       if (Number.isFinite(payload?.maxChapter)) {
         setScopeChapter(payload.maxChapter);
       }
+      setLastFailedQuestion("");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Something went wrong.";
+      const message = getFriendlyErrorMessage(err, "I could not reach the assistant right now. Try again in a moment.");
       setError(message);
+      setLastFailedQuestion(trimmed);
       setMessages((prev) => [
         ...prev,
         {
           id: safeId(),
           role: "assistant",
           fullWidth: true,
-          content: "I hit a snag while checking your notes. Try again in a moment.",
+          content: "I hit a snag while checking your notes. Your saved notes are still safe.",
         },
       ]);
     } finally {
@@ -412,7 +418,7 @@ export default function BookAssistantChat({ bookId, trackingMode, qaState = null
       ]);
       setPromptOpen(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unable to save that note.";
+      const message = getFriendlyErrorMessage(err, "Unable to save that note right now. Please try again.");
       setPromptError(message);
     } finally {
       setPromptSaving(false);
@@ -425,10 +431,16 @@ export default function BookAssistantChat({ bookId, trackingMode, qaState = null
         <div className="assistant-scroll-inner">
           {scopeChapter ? (
             <div className="assistant-scope">
-              Using notes up through {formatProgressLabel(normalizedTrackingMode, scopeChapter)}
+              Using saved notes up through {formatProgressLabel(normalizedTrackingMode, scopeChapter)}. Answers will include source chapters when Scriba finds supporting memory.
             </div>
           ) : (
-            <div className="assistant-scope">No saved reading notes yet. Add a note and I can help you review it.</div>
+            <div className="assistant-scope">
+              No saved reading notes yet.{" "}
+              <Link href={`/books/${bookId}?startNote=1`} className="assistant-entity-link">
+                Add a note
+              </Link>{" "}
+              and I can help you review it.
+            </div>
           )}
           {messages.map((message) => (
             <ChatMessage
@@ -445,7 +457,21 @@ export default function BookAssistantChat({ bookId, trackingMode, qaState = null
       </div>
       <form onSubmit={handleSubmit} className="assistant-input-bar">
         <div className="assistant-input-inner">
-          {error ? <div className="type-caption mb-2 text-red-500">{error}</div> : null}
+          {error ? (
+            <div className="type-caption mb-2 rounded-lg bg-red-50 px-3 py-2 text-red-700">
+              <div>{error}</div>
+              {lastFailedQuestion ? (
+                <button
+                  type="button"
+                  onClick={() => void sendMessage(lastFailedQuestion)}
+                  className="type-button mt-1 text-[var(--color-text-accent)]"
+                  disabled={isLoading}
+                >
+                  Try again
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <div className="assistant-input-row">
             <textarea
               value={inputValue}

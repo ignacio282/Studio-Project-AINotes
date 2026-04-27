@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getBrowserSupabase } from "@/lib/supabase/client";
+import { getFriendlyErrorMessage } from "@/lib/errors/user-facing";
 
 function getSafeNextPath(value) {
   if (typeof value !== "string") return "/home";
@@ -50,7 +51,7 @@ export default function LoginPage() {
       password,
     });
     if (signInError) {
-      setError(signInError.message || "Unable to sign in.");
+      setError(getFriendlyErrorMessage(signInError, "Unable to sign in. Check the email and password and try again."));
       setLoading(false);
       return;
     }

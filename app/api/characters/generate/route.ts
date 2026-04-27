@@ -110,18 +110,29 @@ export async function POST(req: NextRequest) {
       return Response.json({ updated: names });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return new Response(JSON.stringify({ error: "Missing OPENAI_API_KEY" }), { status: 500 });
-    }
-
     const { supabase, user } = await requireUser();
     if (!user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
+    if (!process.env.OPENAI_API_KEY) {
+      console.error("Character generation failed: missing OPENAI_API_KEY");
+      return new Response(JSON.stringify({ error: "Character profiles are not available right now." }), { status: 503 });
+    }
+    const { data: book, error: bookError } = await supabase
+      .from("books")
+      .select("id")
+      .eq("id", bookId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (bookError) throw bookError;
+    if (!book) {
+      return new Response(JSON.stringify({ error: "Book not found" }), { status: 404 });
     }
     const { data: notes, error: notesErr } = await supabase
       .from("notes")
       .select("id,chapter_number,content,ai_summary")
       .eq("book_id", bookId)
+      .eq("user_id", user.id)
       .order("chapter_number", { ascending: true });
     if (notesErr) throw notesErr;
     const allNotes = (notes ?? []) as NoteRow[];

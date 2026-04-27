@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
       .from("notes")
       .select("id,book_id,chapter_number,content,ai_summary,created_at")
       .eq("book_id", bookId)
+      .eq("user_id", user.id)
       .order("created_at", { ascending: true });
 
     if (typeof chapterNumber === "number" && !Number.isNaN(chapterNumber)) {
@@ -73,6 +74,16 @@ export async function POST(req: NextRequest) {
     const { supabase, user } = await requireUser();
     if (!user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
+    const { data: book, error: bookError } = await supabase
+      .from("books")
+      .select("id")
+      .eq("id", bookId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (bookError) throw bookError;
+    if (!book) {
+      return new Response(JSON.stringify({ error: "Book not found" }), { status: 404 });
     }
     const { data, error } = await supabase
       .from("notes")

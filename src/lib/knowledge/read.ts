@@ -71,6 +71,24 @@ type CharacterKnowledge = {
   timeline: KnowledgeTimelineEvent[];
 };
 
+type PlaceNoteRow = {
+  id: string;
+  chapter_number: number | null;
+  content: string | null;
+  ai_summary: unknown;
+  created_at: string | null;
+};
+
+type PlaceKnowledge = {
+  entity: KnowledgeEntity | null;
+  slug: string;
+  name: string;
+  mentions: KnowledgeMention[];
+  timeline: KnowledgeTimelineEvent[];
+  notes: PlaceNoteRow[];
+  sourceChapters: number[];
+};
+
 export async function fetchBookKnowledgeEntities(
   supabase: SupabaseClientLike,
   userId: string,
@@ -179,6 +197,145 @@ export async function fetchCharacterKnowledge(
     }),
     timeline: Array.isArray(timelineResponse.data) ? (timelineResponse.data as KnowledgeTimelineEvent[]) : [],
   } satisfies CharacterKnowledge;
+}
+
+export function slugifyPlaceName(name: string): string {
+  return (name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
+
+function nameFromSlug(slug: string): string {
+  return slug
+    .split("-")
+    .map((part) => (part ? `${part[0].toUpperCase()}${part.slice(1)}` : ""))
+    .filter(Boolean)
+    .join(" ");
+}
+
+function normalizeSummaryObject(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return { summary: [], characters: [], setting: [], relationships: [] };
+  }
+  const rec = value as {
+    summary?: unknown;
+    characters?: unknown;
+    setting?: unknown;
+    relationships?: unknown;
+  };
+  return {
+    summary: toStringList(rec.summary),
+    characters: toStringList(rec.characters),
+    setting: toStringList(rec.setting),
+    relationships: toStringList(rec.relationships),
+  };
+}
+
+function noteMatchesPlace(note: PlaceNoteRow, slug: string, name: string) {
+  const normalizedSlug = slugifyPlaceName(slug);
+  const summary = normalizeSummaryObject(note.ai_summary);
+  if (summary.setting.some((place) => slugifyPlaceName(place) === normalizedSlug)) return true;
+
+  const needle = name.toLowerCase();
+  if (!needle || needle.length < 3) return false;
+  const haystack = [
+    note.content,
+    ...summary.summary,
+    ...summary.setting,
+    ...summary.relationships,
+  ]
+    .filter((entry): entry is string => typeof entry === "string")
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(needle);
+}
+
+async function fetchBookPlaceNotes(
+  supabase: SupabaseClientLike,
+  userId: string,
+  bookId: string,
+): Promise<PlaceNoteRow[]> {
+  const { data, error } = await table(supabase, "notes")
+    .select("id,chapter_number,content,ai_summary,created_at")
+    .eq("user_id", userId)
+    .eq("book_id", bookId)
+    .order("chapter_number", { ascending: true })
+    .order("created_at", { ascending: true })
+    .limit(300);
+  if (error) throw error;
+  return Array.isArray(data) ? (data as PlaceNoteRow[]) : [];
+}
+
+export async function fetchPlaceKnowledge(
+  supabase: SupabaseClientLike,
+  userId: string,
+  bookId: string,
+  slug: string,
+): Promise<PlaceKnowledge | null> {
+  const normalizedSlug = slugifyPlaceName(slug);
+  if (!normalizedSlug) return null;
+
+  const { data: entity, error: entityError } = await table(supabase, "book_entities")
+    .select("id,user_id,book_id,type,slug,name,aliases,profile,first_chapter,last_chapter,mention_count,updated_at")
+    .eq("user_id", userId)
+    .eq("book_id", bookId)
+    .eq("type", "place")
+    .eq("slug", normalizedSlug)
+    .maybeSingle();
+  if (entityError) throw entityError;
+
+  const entityRow = entity ? (entity as KnowledgeEntity) : null;
+  const displayName = entityRow?.name || nameFromSlug(normalizedSlug);
+  const [mentionsResponse, timelineResponse, allNotes] = await Promise.all([
+    entityRow
+      ? table(supabase, "book_entity_mentions")
+          .select("id,note_id,chapter_number,source_text,extracted,created_at")
+          .eq("user_id", userId)
+          .eq("book_id", bookId)
+          .eq("entity_id", entityRow.id)
+          .order("chapter_number", { ascending: true })
+      : Promise.resolve({ data: [], error: null }),
+    entityRow
+      ? table(supabase, "book_timeline_events")
+          .select("id,entity_id,note_id,chapter_number,event_type,event_text,created_at")
+          .eq("user_id", userId)
+          .eq("book_id", bookId)
+          .eq("entity_id", entityRow.id)
+          .order("chapter_number", { ascending: true })
+      : Promise.resolve({ data: [], error: null }),
+    fetchBookPlaceNotes(supabase, userId, bookId),
+  ]);
+
+  if (mentionsResponse.error) throw mentionsResponse.error;
+  if (timelineResponse.error) throw timelineResponse.error;
+
+  const mentions = Array.isArray(mentionsResponse.data) ? (mentionsResponse.data as KnowledgeMention[]) : [];
+  const timeline = Array.isArray(timelineResponse.data) ? (timelineResponse.data as KnowledgeTimelineEvent[]) : [];
+  const mentionNoteIds = new Set(mentions.map((mention) => mention.note_id).filter(Boolean));
+  const notes = allNotes.filter((note) => mentionNoteIds.has(note.id) || noteMatchesPlace(note, normalizedSlug, displayName));
+  const sourceChapters = Array.from(
+    new Set(
+      [
+        ...mentions.map((mention) => Number(mention.chapter_number)),
+        ...timeline.map((event) => Number(event.chapter_number)),
+        ...notes.map((note) => Number(note.chapter_number)),
+      ].filter((chapter) => Number.isFinite(chapter) && chapter > 0),
+    ),
+  ).sort((a, b) => a - b);
+
+  if (!entityRow && mentions.length === 0 && timeline.length === 0 && notes.length === 0) return null;
+
+  return {
+    entity: entityRow,
+    slug: normalizedSlug,
+    name: displayName,
+    mentions,
+    timeline,
+    notes,
+    sourceChapters,
+  };
 }
 
 function toStringList(value: unknown): string[] {
@@ -393,5 +550,189 @@ export function buildCharacterSnapshotFromKnowledge(knowledge: Awaited<ReturnTyp
     sources: sourceChapters,
     max_chapter: sourceChapters.length ? sourceChapters[sourceChapters.length - 1] : null,
     created_at: knowledge.entity.updated_at ?? null,
+  };
+}
+
+function cleanText(value: unknown): string {
+  const text = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+  return text;
+}
+
+function sentenceFromText(value: unknown): string {
+  const text = cleanText(value);
+  if (!text) return "";
+  const sentence = text.match(/^(.+?[.!?])(?:\s|$)/)?.[1]?.trim();
+  return sentence && sentence.length >= 35 ? sentence : text;
+}
+
+function previewText(value: unknown, maxLength = 180): string {
+  const text = cleanText(value);
+  if (!text || text.length <= maxLength) return text;
+  const sliced = text.slice(0, maxLength);
+  return sliced.replace(/\s+\S*$/, "").trim() || sliced.trim();
+}
+
+function chapterFromNote(note: PlaceNoteRow): number | null {
+  const chapter = Number(note.chapter_number);
+  return Number.isFinite(chapter) && chapter > 0 ? chapter : null;
+}
+
+function collectPlaceEvents(knowledge: PlaceKnowledge) {
+  const timelineEvents = knowledge.timeline
+    .map((row) => ({
+      chapterNumber: Number(row.chapter_number),
+      text: sentenceFromText(row.event_text),
+      noteId: row.note_id,
+    }))
+    .filter((row) => Number.isFinite(row.chapterNumber) && row.chapterNumber > 0 && row.text);
+
+  if (timelineEvents.length > 0) return timelineEvents.slice(0, 4);
+
+  return knowledge.notes
+    .map((note) => {
+      const chapterNumber = chapterFromNote(note);
+      const summary = normalizeSummaryObject(note.ai_summary);
+      const text = sentenceFromText(summary.summary[0] || note.content);
+      if (!chapterNumber || !text) return null;
+      return { chapterNumber, text, noteId: note.id };
+    })
+    .filter((row): row is { chapterNumber: number; text: string; noteId: string } => Boolean(row))
+    .filter((row, index, rows) => rows.findIndex((candidate) => candidate.text.toLowerCase() === row.text.toLowerCase()) === index)
+    .slice(0, 4);
+}
+
+function collectCharactersPresent(notes: PlaceNoteRow[]) {
+  const byName = new Map<string, { name: string; chapters: Set<number>; noteCount: number }>();
+  notes.forEach((note) => {
+    const chapter = chapterFromNote(note);
+    const summary = normalizeSummaryObject(note.ai_summary);
+    uniqueStrings(summary.characters).forEach((name) => {
+      const key = name.toLowerCase();
+      const existing = byName.get(key) ?? { name, chapters: new Set<number>(), noteCount: 0 };
+      if (chapter) existing.chapters.add(chapter);
+      existing.noteCount += 1;
+      byName.set(key, existing);
+    });
+  });
+  return Array.from(byName.values())
+    .map((entry) => ({
+      name: entry.name,
+      chapters: Array.from(entry.chapters).sort((a, b) => a - b),
+      noteCount: entry.noteCount,
+    }))
+    .sort((a, b) => b.noteCount - a.noteCount || a.name.localeCompare(b.name))
+    .slice(0, 10);
+}
+
+function collectCharacterActivity(notes: PlaceNoteRow[], characterNames: string[]) {
+  return characterNames
+    .map((name) => {
+      const key = name.toLowerCase();
+      const matching = notes.filter((note) => {
+        const summary = normalizeSummaryObject(note.ai_summary);
+        const text = [note.content, ...summary.summary, ...summary.relationships].join(" ").toLowerCase();
+        return text.includes(key) || summary.characters.some((character) => character.toLowerCase() === key);
+      });
+      const chapters = Array.from(
+        new Set(
+          matching
+            .map(chapterFromNote)
+            .filter((chapter): chapter is number => Number.isFinite(chapter)),
+        ),
+      ).sort((a, b) => a - b);
+      const detail = matching
+        .map((note) => {
+          const summary = normalizeSummaryObject(note.ai_summary);
+          return sentenceFromText(summary.summary[0] || note.content);
+        })
+        .filter(Boolean)[0];
+      if (!detail) return null;
+      return { name, summary: detail, chapters };
+    })
+    .filter((entry): entry is { name: string; summary: string; chapters: number[] } => Boolean(entry))
+    .filter((entry, index, rows) => rows.findIndex((candidate) => candidate.summary.toLowerCase() === entry.summary.toLowerCase()) === index)
+    .slice(0, 3);
+}
+
+function collectPlaceDynamics(notes: PlaceNoteRow[]) {
+  return uniqueStrings(
+    notes.flatMap((note) => {
+      const summary = normalizeSummaryObject(note.ai_summary);
+      return summary.relationships.map(sentenceFromText).filter(Boolean);
+    }),
+  ).slice(0, 3);
+}
+
+export function buildPlaceSnapshotFromKnowledge(knowledge: Awaited<ReturnType<typeof fetchPlaceKnowledge>>) {
+  if (!knowledge) return null;
+  const profile = knowledge.entity?.profile ?? {};
+  const sourceChapters = knowledge.sourceChapters;
+  const events = collectPlaceEvents(knowledge);
+  const charactersPresent = collectCharactersPresent(knowledge.notes);
+  const characterActivity = collectCharacterActivity(
+    knowledge.notes,
+    charactersPresent.map((entry) => entry.name),
+  );
+  const dynamics = collectPlaceDynamics(knowledge.notes);
+  const chapterText =
+    sourceChapters.length > 1
+      ? `${formatChapterLabel(sourceChapters[0])} through ${formatChapterLabel(sourceChapters[sourceChapters.length - 1])}`
+      : sourceChapters.length === 1
+        ? formatChapterLabel(sourceChapters[0])
+        : "your saved notes";
+  const profileSummary = String(profile.summary ?? "").trim();
+  const overview =
+    profileSummary ||
+    (events.length > 0
+      ? `${knowledge.name} is a setting in ${chapterText}${charactersPresent.length ? ` involving ${charactersPresent
+          .slice(0, 3)
+          .map((entry) => entry.name)
+          .join(", ")}` : ""}. The main captured event here is: ${events[0].text}`
+      : `${knowledge.name} appears in your saved notes, but Scriba needs more detail before it can summarize why it matters.`);
+  const storyRole =
+    events.length > 0
+      ? `${knowledge.name} helps anchor ${events.length === 1 ? "a key scene" : "key scenes"} around ${charactersPresent
+          .slice(0, 3)
+          .map((entry) => entry.name)
+          .join(", ") || "the characters in your notes"}.`
+      : `${knowledge.name} is present in your notes, but its role in the story is still unclear.`;
+  const evidence = uniqueStrings([
+    ...knowledge.mentions.map((mention) => {
+      const chapter = Number(mention.chapter_number);
+      const text = previewText(mention.source_text);
+      return text && Number.isFinite(chapter) ? `${formatChapterLabel(chapter)}: ${text}` : text;
+    }),
+    ...knowledge.notes.map((note) => {
+      const chapter = chapterFromNote(note);
+      const summary = normalizeSummaryObject(note.ai_summary);
+      const text = previewText(summary.summary[0] || note.content);
+      return text && chapter ? `${formatChapterLabel(chapter)}: ${text}` : text;
+    }),
+  ]).slice(0, 10);
+
+  return {
+    id: `place-knowledge:${knowledge.entity?.id ?? knowledge.slug}`,
+    user_id: knowledge.entity?.user_id ?? null,
+    book_id: knowledge.entity?.book_id ?? null,
+    place_slug: knowledge.slug,
+    place_name: knowledge.name,
+    question: "Generated from book knowledge",
+    answer: overview,
+    structured: {
+      placeSheetVersion: 1,
+      overview,
+      events,
+      charactersPresent,
+      characterActivity,
+      dynamics,
+      storyRole,
+      movement: [],
+      evidence,
+      openQuestions: [],
+      sources: sourceChapters,
+    },
+    sources: sourceChapters,
+    max_chapter: sourceChapters.length ? sourceChapters[sourceChapters.length - 1] : null,
+    created_at: knowledge.entity?.updated_at ?? null,
   };
 }

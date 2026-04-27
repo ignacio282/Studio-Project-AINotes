@@ -628,9 +628,10 @@ export async function POST(req: Request) {
     }
 
     if (!process.env.OPENAI_API_KEY) {
+      console.error("/api/ai-reply missing OPENAI_API_KEY");
       return new Response(
-        JSON.stringify({ error: "Missing OPENAI_API_KEY in environment" }),
-        { status: 500 },
+        JSON.stringify({ error: "AI notes are not available right now. Please try again later." }),
+        { status: 503 },
       );
     }
 
@@ -881,9 +882,7 @@ Revise the candidate so it keeps only the most useful, supported information.
 
     return Response.json({ summary: updatedSummary, metadata: extractedMetadata, assistantMessage });
   } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : "Unable to generate note summary";
     console.error("/api/ai-reply error:", error);
-    return new Response(JSON.stringify({ error: message }), { status: 500 });
+    return new Response(JSON.stringify({ error: "Unable to update notes right now. Please try again." }), { status: 500 });
   }
 }

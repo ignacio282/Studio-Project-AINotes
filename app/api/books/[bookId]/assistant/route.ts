@@ -739,19 +739,23 @@ export async function POST(
       return new Response(JSON.stringify({ error: "question is required" }), { status: 400 });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return new Response(JSON.stringify({ error: "Missing OPENAI_API_KEY in environment" }), { status: 500 });
-    }
-
     const { supabase, user } = await requireUser();
     if (!user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
+    if (!process.env.OPENAI_API_KEY) {
+      console.error("Assistant request failed: missing OPENAI_API_KEY");
+      return new Response(JSON.stringify({ error: "The assistant is not available right now. Try again later." }), { status: 503 });
     }
     const { data: book } = await supabase
       .from("books")
       .select("tracking_mode")
       .eq("id", bookId)
-      .single();
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!book) {
+      return new Response(JSON.stringify({ error: "Book not found" }), { status: 404 });
+    }
     const trackingMode = normalizeTrackingMode(book?.tracking_mode);
     const progressUnit = getProgressUnit(trackingMode);
     const explicitMax = parseMaxChapter(body.maxChapter);
@@ -762,9 +766,10 @@ export async function POST(
         .from("notes")
         .select("chapter_number")
         .eq("book_id", bookId)
+        .eq("user_id", user.id)
         .order("chapter_number", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       if (latestErr) throw latestErr;
       maxChapter = typeof latestNote?.chapter_number === "number" ? latestNote.chapter_number : null;
     }
@@ -780,6 +785,7 @@ export async function POST(
         .from("book_chapter_memory")
         .select("chapter_number,summary")
         .eq("book_id", bookId)
+        .eq("user_id", user.id)
         .lte("chapter_number", maxChapter)
         .order("chapter_number", { ascending: true });
       memoryRows = (resp.data ?? []) as MemoryRow[];
@@ -795,6 +801,7 @@ export async function POST(
         .from("notes")
         .select("chapter_number,ai_summary,content,created_at")
         .eq("book_id", bookId)
+        .eq("user_id", user.id)
         .lte("chapter_number", maxChapter)
         .order("chapter_number", { ascending: true });
       const latestByChapter = new Map<number, { chapter_number: number; ai_summary: unknown; content: string | null }>();

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import NoteSummaryView from "@/components/NoteSummaryView";
 import BackArrowIcon from "@/components/BackArrowIcon";
 import QaLoadingPage from "@/components/qa/QaLoadingPage";
+import MissingResourcePage from "@/components/errors/MissingResourcePage";
 import { resolveQaState } from "@/lib/qa/state";
 import { formatProgressLabel, normalizeTrackingMode } from "@/lib/books/progress";
 
@@ -38,15 +39,28 @@ export default async function NoteDetailPage({ params, searchParams }) {
     .from("notes")
     .select("id,book_id,chapter_number,content,ai_summary,created_at")
     .eq("id", noteId)
-    .single();
+    .eq("book_id", bookId)
+    .eq("user_id", authData.user.id)
+    .maybeSingle();
   const { data: book } = await supabase
     .from("books")
     .select("tracking_mode")
     .eq("id", bookId)
-    .single();
+    .eq("user_id", authData.user.id)
+    .maybeSingle();
 
   const note = qaState === "empty" ? null : error ? null : data;
   const trackingMode = normalizeTrackingMode(book?.tracking_mode);
+  if (qaState !== "empty" && !note) {
+    return (
+      <MissingResourcePage
+        title="Note not found"
+        message="This note may have been deleted, or it may belong to another Scriba account."
+        actionHref={`/books/${bookId}`}
+        actionLabel="Back to book"
+      />
+    );
+  }
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl space-y-6 bg-[var(--color-page)] px-6 py-8 text-[var(--color-text-main)]">

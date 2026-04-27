@@ -37,28 +37,33 @@ Run these:
 3. [db/2025-11-08_add_note_prompts.sql](C:/Users/Ignacio/Desktop/readingCompanion-aiBack/reading-companion-ai/db/2025-11-08_add_note_prompts.sql)
 4. [db/2026-02-09_reassign_legacy_data_to_user.sql](C:/Users/Ignacio/Desktop/readingCompanion-aiBack/reading-companion-ai/db/2026-02-09_reassign_legacy_data_to_user.sql)
 5. [db/2026-03-13_create_book_covers_bucket.sql](C:/Users/Ignacio/Desktop/readingCompanion-aiBack/reading-companion-ai/db/2026-03-13_create_book_covers_bucket.sql)
+6. [db/2026-04-25_add_book_knowledge_base.sql](C:/Users/Ignacio/Desktop/readingCompanion-aiBack/reading-companion-ai/db/2026-04-25_add_book_knowledge_base.sql)
+7. [db/2026-04-25_add_character_assistant_snapshots.sql](C:/Users/Ignacio/Desktop/readingCompanion-aiBack/reading-companion-ai/db/2026-04-25_add_character_assistant_snapshots.sql)
 
 Notes:
 
 - `2026-02-09_reassign_legacy_data_to_user.sql` is only needed if you already have older rows with missing ownership.
 - The new `book-covers` migration creates the public storage bucket used by the add-book flow.
+- The April 2026 migrations support character/place knowledge, relationship timelines, and assistant-derived character snapshots.
 
 ## 2. Prepare Supabase Auth
 
 This app currently has login, but not self-serve sign-up.
 
-That means you should manually create the tester accounts in Supabase:
+That means you should manually create production demo/tester accounts in Supabase:
 
 1. Open `Supabase Dashboard -> Authentication -> Users`.
-2. Create your own account.
-3. Create a second account for your girlfriend if needed.
-4. Use email/password auth.
-5. Mark emails as confirmed if Supabase asks.
+2. Create each account with email/password auth.
+3. Use unique temporary passwords stored outside the repository.
+4. Mark emails as confirmed if Supabase asks.
+5. Add optional metadata such as `{ "demo": true, "demo_date": "2026-05-01", "role": "populated" }`.
 
 Recommended:
 
-- Keep one account as your main personal tester.
-- Create a separate second account rather than reusing old QA users.
+- For the Friday, May 1, 2026 demo, use the account plan in [DEMO_READINESS.md](C:/Users/Ignacio/Desktop/readingCompanion-aiBack/reading-companion-ai/DEMO_READINESS.md).
+- Keep the populated demo account separate from your personal account.
+- Keep live tester accounts empty so attendees see the new-user experience.
+- Do not expose public sign-up yet.
 
 ## 3. Check Supabase Auth URL Settings
 
@@ -191,6 +196,15 @@ Run this in production after deploy.
 2. Confirm the answer renders
 3. Confirm sources and chapter scope display
 
+### Friday Demo Accounts
+
+Use the production accounts from [DEMO_READINESS.md](C:/Users/Ignacio/Desktop/readingCompanion-aiBack/reading-companion-ai/DEMO_READINESS.md):
+
+1. `demo-new-user`: login -> onboarding -> add book screen
+2. `tester-1`: login -> onboarding starts cleanly
+3. `tester-2`: login -> onboarding starts cleanly
+4. `demo-populated`: login -> Home -> Library -> Book Hub -> start note -> save/update note -> reflection -> assistant Q&A -> note detail -> character profile
+
 ## 9. Known Deployment-Sensitive Areas
 
 These are the most likely technical experience breakers:
@@ -254,22 +268,25 @@ That script depends on:
 - `SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
+The seed script writes `qa-seed-output.txt`, which is intentionally ignored because it contains generated local IDs and the configured QA password.
+
 ## 12. Recommended Release Flow
 
-For your one-week real-world test, the safest flow is:
+For a production demo or short real-world test, the safest flow is:
 
 1. Deploy with login enabled.
-2. Use your own account as the primary tester.
-3. Create one second auth account for your girlfriend.
+2. Create dedicated Supabase Auth accounts instead of reusing personal accounts.
+3. Populate the main demo account through the app UI so derived memory tables stay synchronized.
 4. Do not expose public sign-up yet.
-5. Keep the deployment private to your own tester accounts until the week is done.
+5. Keep the deployment private to known tester accounts until the demo or test window is done.
 
 ## Current State Summary
 
-As of March 13, 2026:
+As of April 27, 2026:
 
 - local lint passes
 - production build passes
 - login redirect behavior is fixed
 - `useSearchParams()` production build issues were fixed
 - book cover storage setup now has a migration
+- production demo account prep is documented in `DEMO_READINESS.md`

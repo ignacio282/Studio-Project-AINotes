@@ -17,6 +17,28 @@ function formatCount(count, singular, plural) {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
+function slugifyPlaceName(name) {
+  return (name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
+
+function normalizePlace(place) {
+  if (typeof place === "string") {
+    const name = place.trim();
+    return name ? { name, slug: slugifyPlaceName(name) } : null;
+  }
+  if (!place || typeof place !== "object") return null;
+  const name = typeof place.name === "string" ? place.name.trim() : "";
+  const slug =
+    typeof place.slug === "string" && place.slug.trim()
+      ? place.slug.trim()
+      : slugifyPlaceName(name);
+  return name ? { name, slug } : null;
+}
+
 function ChevronRightIcon({ className }) {
   return (
     <svg viewBox="0 0 20 20" className={className} aria-hidden>
@@ -53,10 +75,16 @@ export default function BookHubTabs({
   const [showAssistantNotice, setShowAssistantNotice] = useState(true);
   const [notesState, setNotesState] = useState(Array.isArray(notes) ? notes : []);
   const [activeNoteActionId, setActiveNoteActionId] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [isDeletingNote, setIsDeletingNote] = useState(false);
+  const [noteActionError, setNoteActionError] = useState("");
   const normalizedTrackingMode = normalizeTrackingMode(trackingMode);
   const effectiveNoteCount = notesState.length;
   const filtersAreDisabled = effectiveNoteCount === 0;
+  const normalizedPlaces = useMemo(
+    () => (Array.isArray(places) ? places.map(normalizePlace).filter(Boolean) : []),
+    [places],
+  );
 
   useEffect(() => {
     setNotesState(Array.isArray(notes) ? notes : []);
@@ -69,11 +97,10 @@ export default function BookHubTabs({
 
   const handleDeleteNote = async () => {
     if (!activeNoteAction || isDeletingNote) return;
-    const confirmed = window.confirm("Delete this note permanently?");
-    if (!confirmed) return;
 
     try {
       setIsDeletingNote(true);
+      setNoteActionError("");
       const response = await fetch(`/api/notes/${activeNoteAction.id}`, { method: "DELETE" });
       if (!response.ok) {
         let message = "Unable to delete note.";
@@ -88,13 +115,21 @@ export default function BookHubTabs({
 
       setNotesState((prev) => prev.filter((note) => note.id !== activeNoteAction.id));
       setActiveNoteActionId("");
+      setConfirmingDelete(false);
       router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to delete note.";
-      window.alert(message);
+      setNoteActionError(message);
     } finally {
       setIsDeletingNote(false);
     }
+  };
+
+  const closeNoteActions = () => {
+    if (isDeletingNote) return;
+    setActiveNoteActionId("");
+    setConfirmingDelete(false);
+    setNoteActionError("");
   };
 
   return (
@@ -168,8 +203,17 @@ export default function BookHubTabs({
           ) : null}
 
           {notesState.length === 0 ? (
-            <div className="type-body rounded-2xl bg-[var(--color-surface)] p-6 text-[var(--color-secondary)]">
-              Start taking notes to see them here.
+            <div className="rounded-2xl bg-[var(--color-surface)] p-6">
+              <div className="type-title text-[var(--color-text-main)]">Start your reading memory</div>
+              <p className="type-body mt-2 text-[var(--color-secondary)]">
+                Add your first note for this book and Scriba will organize the summary, characters, places, and reflections here.
+              </p>
+              <Link
+                href={`/books/${bookId}?startNote=1`}
+                className="type-button mt-4 inline-flex rounded-[8px] bg-[var(--color-accent)] px-4 py-2 text-[var(--color-text-on-accent)]"
+              >
+                Start note
+              </Link>
             </div>
           ) : (
             <div className="space-y-4">
@@ -222,20 +266,40 @@ export default function BookHubTabs({
           )}
           <ActionBottomSheet
             open={Boolean(activeNoteAction)}
-            onClose={() => {
-              if (isDeletingNote) return;
-              setActiveNoteActionId("");
-            }}
-            title="Note actions"
-            actions={[
-              {
-                id: "delete-note",
-                label: isDeletingNote ? "Deleting note..." : "Delete note",
-                onClick: handleDeleteNote,
-                disabled: isDeletingNote,
-                destructive: true,
-              },
-            ]}
+            onClose={closeNoteActions}
+            title={confirmingDelete ? "Delete this note?" : noteActionError || "Note actions"}
+            actions={
+              confirmingDelete
+                ? [
+                    {
+                      id: "confirm-delete-note",
+                      label: isDeletingNote ? "Deleting note..." : "Delete permanently",
+                      onClick: handleDeleteNote,
+                      disabled: isDeletingNote,
+                      destructive: true,
+                    },
+                    {
+                      id: "cancel-delete-note",
+                      label: "Keep note",
+                      onClick: () => {
+                        setConfirmingDelete(false);
+                        setNoteActionError("");
+                      },
+                      disabled: isDeletingNote,
+                    },
+                  ]
+                : [
+                    {
+                      id: "delete-note",
+                      label: "Delete note",
+                      onClick: () => {
+                        setConfirmingDelete(true);
+                        setNoteActionError("");
+                      },
+                      destructive: true,
+                    },
+                  ]
+            }
           />
         </div>
       )}
@@ -283,26 +347,38 @@ export default function BookHubTabs({
       {activeTab === "places" && (
         <div className="pt-4">
           <div className="caption mb-3">
-            {formatCount(places.length, "place", "places")}
+            {formatCount(normalizedPlaces.length, "place", "places")}
           </div>
-          {places.length === 0 ? (
+          {normalizedPlaces.length === 0 ? (
             <div className="type-body rounded-2xl bg-[var(--color-surface)] p-6 text-[var(--color-secondary)]">
               Places will appear once they are mentioned in your notes.
             </div>
           ) : (
             <div className="overflow-hidden rounded-2xl bg-[var(--color-surface)]">
-              {places.map((place, index) => (
-                <div
-                  key={place}
-                  className={`type-title flex items-center justify-between px-4 py-4 ${
-                    index < places.length - 1
-                      ? "border-b border-[var(--color-text-disabled)]"
-                      : ""
-                  }`}
-                >
-                  <span>{place}</span>
-                </div>
-              ))}
+              {normalizedPlaces.map((place, index) => {
+                const rowClass = `type-title flex items-center justify-between px-4 py-4 ${
+                  index < normalizedPlaces.length - 1
+                    ? "border-b border-[var(--color-text-disabled)]"
+                    : ""
+                }`;
+                if (place.slug) {
+                  return (
+                    <Link
+                      key={place.slug}
+                      href={`/books/${bookId}/places/${place.slug}`}
+                      className={`${rowClass} transition hover:bg-[color:var(--rc-color-text-secondary)/8%]`}
+                    >
+                      <span>{place.name}</span>
+                      <ChevronRightIcon className="h-4 w-4 text-[var(--color-secondary)]" />
+                    </Link>
+                  );
+                }
+                return (
+                  <div key={place.name} className={rowClass}>
+                    <span>{place.name}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

@@ -208,7 +208,8 @@ export async function POST(request: Request) {
     }
 
     if (!process.env.OPENAI_API_KEY) {
-      return new Response(JSON.stringify({ error: "Missing OPENAI_API_KEY in environment" }), { status: 500 });
+      console.error("/api/reflection-change missing OPENAI_API_KEY");
+      return new Response(JSON.stringify({ error: "Reflection summaries are not available right now." }), { status: 503 });
     }
 
     const beforeDigest = summarizeStructuredNote(before) || "None";
@@ -274,8 +275,7 @@ ${responsesDigest}
 
     return Response.json({ summary: summaryText });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to summarize reflection changes.";
     console.error("/api/reflection-change error:", error);
-    return new Response(JSON.stringify({ error: message }), { status: 500 });
+    return new Response(JSON.stringify({ error: "Unable to summarize reflection changes right now." }), { status: 500 });
   }
 }

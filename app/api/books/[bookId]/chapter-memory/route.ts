@@ -36,6 +36,16 @@ export async function POST(
     if (!user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
+    const { data: book, error: bookError } = await supabase
+      .from("books")
+      .select("id")
+      .eq("id", bookId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (bookError) throw bookError;
+    if (!book) {
+      return new Response(JSON.stringify({ error: "Book not found" }), { status: 404 });
+    }
     const { error } = await supabase
       .from("book_chapter_memory")
       .upsert(

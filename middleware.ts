@@ -62,11 +62,13 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  let userId = "";
   try {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data?.user) {
       return buildLoginRedirect(request, path);
     }
+    userId = data.user.id;
   } catch (error) {
     // Reset broken Supabase session cookies so stale local auth state does not loop.
     for (const cookie of request.cookies.getAll()) {
@@ -87,6 +89,7 @@ export async function middleware(request: NextRequest) {
   const { count, error: bookCountError } = await supabase
     .from("books")
     .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
     .limit(1);
 
   if (bookCountError) {
