@@ -161,7 +161,7 @@ function EmptyLine({ label = "Not captured yet" }) {
 
 function StatChip({ label, value, icon: Icon }) {
   return (
-    <div className="rounded-[8px] bg-[var(--color-page)] px-3 py-3">
+    <div className="rounded-[8px] bg-[rgba(250,249,245,0.72)] px-3 py-3">
       <div className="flex items-center gap-2 text-[var(--color-secondary)]">
         {Icon ? <Icon className="h-3.5 w-3.5 text-[var(--color-text-accent)]" aria-hidden="true" /> : null}
         <div className="type-caption">{label}</div>
@@ -177,13 +177,13 @@ function ProfileSection({ title, icon: Icon, tone = "default", children }) {
       className={[
         "rounded-[8px] p-5",
         tone === "accent"
-          ? "bg-[var(--color-accent-subtle)]"
-          : "bg-[var(--color-surface)]",
+          ? "bg-[rgba(229,239,238,0.82)] backdrop-blur"
+          : "bg-[rgba(240,238,229,0.78)] backdrop-blur",
       ].join(" ")}
     >
       <div className="flex items-center gap-3">
         {Icon ? (
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[var(--color-page)] text-[var(--color-text-accent)]">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[rgba(250,249,245,0.72)] text-[var(--color-text-accent)]">
             <Icon className="h-4.5 w-4.5" aria-hidden="true" />
           </div>
         ) : null}
@@ -210,8 +210,8 @@ function EntityLoadingState({ title = "Building profile..." }) {
 
 function SparseProfileState({ characterName, onDelete }) {
   return (
-    <section className="rounded-[8px] bg-[var(--color-surface)] p-8 text-center">
-      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-[8px] bg-[var(--color-page)] text-[var(--color-text-accent)]">
+    <section className="rounded-[8px] bg-[rgba(240,238,229,0.78)] p-8 text-center backdrop-blur">
+      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-[8px] bg-[rgba(250,249,245,0.72)] text-[var(--color-text-accent)]">
         <BookOpen className="h-5 w-5" aria-hidden="true" />
       </div>
       <h2 className="type-title mt-4 text-[var(--color-text-main)]">Not enough information yet</h2>
@@ -221,7 +221,7 @@ function SparseProfileState({ characterName, onDelete }) {
       <button
         type="button"
         onClick={onDelete}
-        className="type-button mt-5 rounded-[8px] bg-[var(--color-page)] px-4 py-2 text-[var(--color-secondary)] transition hover:text-[var(--color-text-main)]"
+        className="type-button mt-5 rounded-[8px] bg-[rgba(250,249,245,0.72)] px-4 py-2 text-[var(--color-secondary)] transition hover:text-[var(--color-text-main)]"
       >
         Delete this character
       </button>
@@ -242,7 +242,7 @@ function LabeledList({ items }) {
       {items.map((item, index) => (
         <div
           key={`${item.label}-${index}`}
-          className="rounded-[8px] bg-[var(--color-page)] px-4 py-3"
+          className="rounded-[8px] bg-[rgba(250,249,245,0.72)] px-4 py-3"
         >
           <div className="flex items-start gap-2">
             <CircleDot className="mt-1 h-3.5 w-3.5 shrink-0 text-[var(--color-text-accent)]" aria-hidden="true" />
@@ -272,7 +272,7 @@ function RelationshipCards({ items, fallbackItems }) {
       {cards.map((item, index) => (
         <div
           key={`${item.name}-${index}`}
-          className="rounded-[8px] bg-[var(--color-page)] px-4 py-4"
+          className="rounded-[8px] bg-[rgba(250,249,245,0.72)] px-4 py-4"
         >
           <div className="flex flex-wrap items-center gap-2">
             <div className="type-title text-[var(--color-text-main)]">{item.name}</div>
@@ -307,7 +307,7 @@ function RelationshipList({ items }) {
         const { label, detail } = splitLabelAndDetail(item);
         const details = detail.split(/;\s+/).map((entry) => entry.trim()).filter(Boolean);
         return (
-          <div key={`${item}-${index}`} className="rounded-[8px] bg-[var(--color-page)] px-4 py-3">
+          <div key={`${item}-${index}`} className="rounded-[8px] bg-[rgba(250,249,245,0.72)] px-4 py-3">
             {label ? <div className="type-title text-[var(--color-text-main)]">{label}</div> : null}
             <div className={label ? "mt-1 space-y-1" : "space-y-1"}>
               {(details.length ? details : [detail]).map((entry, detailIndex) => (
@@ -343,7 +343,7 @@ function SourceLinks({ chapters, noteLinks, trackingMode }) {
             {label}
           </Link>
         ) : (
-          <span key={chapter} className="type-caption rounded-full bg-[var(--color-page)] px-3 py-1 text-[var(--color-secondary)]">
+          <span key={chapter} className="type-caption rounded-full bg-[rgba(250,249,245,0.72)] px-3 py-1 text-[var(--color-secondary)]">
             {label}
           </span>
         );
@@ -392,7 +392,7 @@ function Timeline({ items, fallbackItems, noteLinks, trackingMode }) {
               : "";
         const href = Number.isFinite(chapter) ? noteLinks?.[String(chapter)] : "";
         return (
-          <div key={`${chapter}-${event}-${index}`} className="rounded-[8px] bg-[var(--color-page)] px-4 py-3">
+          <div key={`${chapter}-${event}-${index}`} className="rounded-[8px] bg-[rgba(250,249,245,0.72)] px-4 py-3">
             <div className="type-caption text-[var(--color-text-accent)]">
               {Number.isFinite(chapter) ? formatProgressLabel(trackingMode, chapter) : "Unknown point"}
             </div>
@@ -567,7 +567,7 @@ export default function CharacterProfileSheet({
 
   return (
     <div className="space-y-5 pb-8">
-      <section className="overflow-hidden rounded-[8px] bg-[var(--color-surface)]">
+      <section className="overflow-hidden rounded-[8px] bg-[rgba(240,238,229,0.78)] backdrop-blur">
         <div className="h-1.5 bg-[var(--color-accent)]" aria-hidden="true" />
         <div className="p-5">
         <div className="flex items-start justify-between gap-4">

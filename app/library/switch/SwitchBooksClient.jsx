@@ -12,8 +12,8 @@ function BookCard({ book, isCurrent, onSelect, isSubmitting }) {
       disabled={isCurrent || isSubmitting}
       className={`relative w-full rounded-3xl px-5 py-4 text-left ${
         isCurrent
-          ? "border-4 border-[var(--color-accent)] bg-[var(--color-surface)]"
-          : "border border-transparent bg-[var(--color-surface)]"
+          ? "ring-4 ring-[var(--color-accent)] bg-[rgba(240,238,229,0.78)] backdrop-blur"
+          : "bg-[rgba(240,238,229,0.78)] backdrop-blur"
       } ${isSubmitting ? "opacity-60" : ""}`}
     >
       {isCurrent ? (

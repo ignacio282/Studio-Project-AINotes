@@ -147,10 +147,10 @@ export default async function HomePage({ searchParams }) {
   const primaryActionLabel = hasCurrentBook ? "Explore book" : "Add book";
 
   return (
-    <div className="min-h-screen bg-[#FAF9F5] text-[#2A2A2A]">
+    <div className="min-h-screen bg-transparent text-[#2A2A2A]">
       <main className="mx-auto w-full sm:max-w-screen-sm">
         <section className={`relative ${hasCurrentBook ? "h-[282px]" : "h-[284px]"}`}>
-          <div className="h-[148px] bg-[#5A8A84] px-4 py-4">
+          <div className="h-[148px] bg-[rgba(90,138,132,0.92)] px-4 py-4 backdrop-blur-sm">
             <div className="flex items-start justify-between gap-3">
               <h1 className="type-h1 text-white">
                 Currently reading
@@ -160,7 +160,7 @@ export default async function HomePage({ searchParams }) {
           </div>
 
           {hasCurrentBook ? (
-            <div className="absolute left-6 right-6 top-[62px] flex flex-col items-center gap-4 rounded-[8px] bg-[#F0EEE5] p-4">
+            <div className="absolute left-6 right-6 top-[62px] flex flex-col items-center gap-4 rounded-[8px] bg-[rgba(240,238,229,0.86)] p-4 backdrop-blur">
               <div className="flex h-[132px] w-full items-center gap-4">
                 <div className="h-[132px] w-[89px] overflow-hidden rounded-[8px]">
                   {coverSrc ? (
@@ -225,7 +225,7 @@ export default async function HomePage({ searchParams }) {
               </div>
             </div>
           ) : (
-            <div className="absolute left-6 right-6 top-[62px] rounded-[8px] bg-[#F0EEE5] p-4">
+            <div className="absolute left-6 right-6 top-[62px] rounded-[8px] bg-[rgba(240,238,229,0.86)] p-4 backdrop-blur">
               <h2 className="type-h1 text-[#2F2F2F]">
                 Start your first book
               </h2>
@@ -269,22 +269,22 @@ export default async function HomePage({ searchParams }) {
                   Your current story position
                 </p>
               </div>
-              <div className="mt-4 rounded-[8px] bg-[#F0EEE5] px-4 pb-6 pt-4">
+              <div className="mt-4 rounded-[8px] bg-[rgba(240,238,229,0.78)] px-4 pb-6 pt-4 backdrop-blur">
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-[5px] bg-[#FAF9F5] px-3 py-3">
+                  <div className="rounded-[5px] bg-[rgba(250,249,245,0.72)] px-3 py-3">
                     <div className="type-caption text-[#A19F99]">Last saved position</div>
                     <div className="type-title mt-1 text-[#2A2A2A]">
                       {storyContext.progressLabel || "Not logged yet"}
                     </div>
                   </div>
-                  <div className="rounded-[5px] bg-[#FAF9F5] px-3 py-3">
+                  <div className="rounded-[5px] bg-[rgba(250,249,245,0.72)] px-3 py-3">
                     <div className="type-caption text-[#A19F99]">Latest setting from notes</div>
                     <div className="type-title mt-1 truncate text-[#2A2A2A]">
                       {storyContext.setting || "Not clear yet"}
                     </div>
                   </div>
                 </div>
-                <div className="mt-3 rounded-[5px] bg-[#FAF9F5] px-3 py-3">
+                <div className="mt-3 rounded-[5px] bg-[rgba(250,249,245,0.72)] px-3 py-3">
                   <div className="type-caption text-[#A19F99]">Characters active in recent notes</div>
                   <div className="type-body mt-1 text-[#2A2A2A]">
                     {contextCharacters.length ? contextCharacters.join(", ") : "Characters will appear here after more notes."}
@@ -326,14 +326,14 @@ export default async function HomePage({ searchParams }) {
                         const key = character.slug || character.name;
                         const hasDetail = hasCharacterDetail(character);
                         const tile = (
-                          <div className="flex items-center gap-3 rounded-[8px] bg-[#F0EEE5] px-4 py-3">
+                          <div className="flex items-center gap-3 rounded-[8px] bg-[rgba(240,238,229,0.78)] px-4 py-3 backdrop-blur">
                             <div className="min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="type-title truncate text-[#2F2F2F]">
                                   {character.name}
                                 </div>
                                 {Number(character.mentions) > 0 ? (
-                                  <div className="type-caption shrink-0 rounded-full bg-[#FAF9F5] px-2 py-0.5 text-[#595853]">
+                                  <div className="type-caption shrink-0 rounded-full bg-[rgba(250,249,245,0.72)] px-2 py-0.5 text-[#595853]">
                                     {character.mentions} mentions
                                   </div>
                                 ) : null}
@@ -370,7 +370,7 @@ export default async function HomePage({ searchParams }) {
                         );
                       })
                 ) : (
-                  <div className="type-body rounded-[8px] bg-[#F0EEE5] px-4 py-5 text-[#595853]">
+                  <div className="type-body rounded-[8px] bg-[rgba(240,238,229,0.78)] px-4 py-5 text-[#595853] backdrop-blur">
                     Important characters will show up here once they are mentioned in your notes.
                   </div>
                 )}

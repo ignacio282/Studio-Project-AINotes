@@ -34,7 +34,7 @@ export default async function SwitchBookPage({ searchParams }) {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-page)] text-[var(--color-text-main)]">
+    <div className="min-h-screen bg-transparent text-[var(--color-text-main)]">
       <main className="mx-auto max-w-2xl px-6 pb-20 pt-10">
         <header className="mb-10 flex items-center gap-4">
           <Link href="/library" className="text-[var(--color-text-main)]">

@@ -63,7 +63,7 @@ export default async function NoteDetailPage({ params, searchParams }) {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-2xl space-y-6 bg-[var(--color-page)] px-6 py-8 text-[var(--color-text-main)]">
+    <div className="mx-auto min-h-screen max-w-2xl space-y-6 bg-transparent px-6 py-8 text-[var(--color-text-main)]">
       {/* Top bar / back */}
       <div className="pt-2">
         <Link
@@ -91,7 +91,7 @@ export default async function NoteDetailPage({ params, searchParams }) {
         </div>
       </header>
 
-      <section className="rounded-2xl bg-[var(--color-surface)] p-4">
+      <section className="rounded-2xl bg-[rgba(240,238,229,0.78)] p-4 backdrop-blur">
         <div className="type-title">Content</div>
         <div className="type-body mt-2 whitespace-pre-wrap text-[var(--color-text-main)]">
           {note?.content || <Placeholder label="No content" />}

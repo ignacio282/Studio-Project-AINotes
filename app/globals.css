@@ -19,7 +19,7 @@
   --rc-spacing-unit: 8px;
 
   --color-background: var(--rc-color-page);
-  --color-page: var(--rc-color-page);
+  --color-page: rgba(250, 249, 245, 0.8);
   --color-surface: var(--rc-color-surface);
   --color-text-main: var(--rc-color-text-primary);
   --color-secondary: var(--rc-color-text-secondary);
@@ -88,9 +88,60 @@
 /* Base document styling */
 body {
   background-color: var(--rc-color-page);
+  background-image:
+    linear-gradient(
+      125deg,
+      rgba(90, 138, 132, 0.2),
+      rgba(250, 249, 245, 0.96) 32%,
+      rgba(204, 155, 92, 0.16) 58%,
+      rgba(110, 124, 161, 0.14) 82%,
+      rgba(90, 138, 132, 0.16)
+    );
+  background-position:
+    0% 45%;
+  background-size:
+    240% 240%;
   color: var(--rc-color-text-primary);
   font-family: var(--font-body), var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   min-height: 100vh;
+  animation: scriba-background-shift 18s ease-in-out infinite;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(90deg, rgba(42, 42, 42, 0.07) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(42, 42, 42, 0.058) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, transparent, black 20%, black 68%, transparent);
+  opacity: 0.52;
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes scriba-background-shift {
+  0%,
+  100% {
+    background-position:
+      0% 45%;
+  }
+  50% {
+    background-position:
+      100% 55%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body {
+    animation: none;
+  }
 }
 
 /* Ensure form controls inherit the app font */
@@ -175,7 +226,7 @@ textarea {
 /* Assistant layout */
 .assistant-page {
   min-height: 100vh;
-  background-color: var(--color-page);
+  background-color: var(--rc-color-page);
   color: var(--color-text-main);
   display: flex;
   flex-direction: column;
@@ -185,7 +236,7 @@ textarea {
   position: sticky;
   top: 0;
   z-index: 40;
-  background-color: var(--color-page);
+  background-color: var(--rc-color-page);
   border-bottom: 1px solid var(--color-surface);
 }
 
@@ -348,7 +399,7 @@ textarea {
   right: 0;
   bottom: 0;
   z-index: 40;
-  background-color: var(--color-page);
+  background-color: var(--rc-color-page);
   border-top: 1px solid var(--color-surface);
   padding: 12px 0 18px;
 }

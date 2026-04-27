@@ -155,7 +155,7 @@ export default function NoteSummaryView({ summary }) {
   }
 
   return (
-    <section className="rounded-2xl bg-[var(--color-surface)] p-4">
+    <section className="rounded-2xl bg-[rgba(240,238,229,0.78)] p-4 backdrop-blur">
       <div className="type-title">AI Note</div>
       <div className="mt-4">
         <SummarySectionStack summary={summary} />
