@@ -11,6 +11,7 @@ export async function middleware(request: NextRequest) {
   const url = new URL(request.url);
   const path = url.pathname;
   const skipOnboardingParam = url.searchParams.get("skipOnboarding") === "1";
+  const previewOnboardingParam = url.searchParams.get("preview") === "1";
   const hasSkipOnboardingCookie = request.cookies.get("rc_onboarding_skipped")?.value === "1";
   const shouldSkipOnboarding = skipOnboardingParam || hasSkipOnboardingCookie;
 
@@ -118,7 +119,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Returning users skip onboarding once they already have at least one book.
-  if (hasBooks && isOnboardingPath) {
+  // Preview mode lets demo accounts revisit the flow without changing account state.
+  if (hasBooks && isOnboardingPath && !previewOnboardingParam) {
     return NextResponse.redirect(new URL("/home", request.url));
   }
 

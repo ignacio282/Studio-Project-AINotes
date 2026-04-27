@@ -56,8 +56,8 @@ function SwapVertIcon({ className = "" }) {
 
 function BookRow({ book, href = "", showArrow = false, compact = false }) {
   const containerClass = compact
-    ? "flex items-center gap-4 rounded-[8px] bg-[#F0EEE5] px-4 py-2"
-    : "flex items-center gap-4 rounded-3xl bg-[var(--color-surface)] px-5 py-4";
+    ? "flex items-center gap-4 rounded-[8px] bg-[rgba(240,238,229,0.78)] px-4 py-2 backdrop-blur"
+    : "flex items-center gap-4 rounded-3xl bg-[rgba(240,238,229,0.78)] px-5 py-4 backdrop-blur";
   const coverClass = compact
     ? "h-[71px] w-12 overflow-hidden rounded-[8px] bg-white/70"
     : "h-28 w-20 overflow-hidden rounded-xl bg-white/70";
@@ -123,7 +123,7 @@ export default async function LibraryPage({ searchParams }) {
   const isSingleBookNoToRead = hasBooks && effectiveBooks.length === 1 && effectiveToReadBooks.length === 0;
 
   return (
-    <div className="min-h-screen bg-[#FAF9F5] text-[var(--color-text-main)]">
+    <div className="min-h-screen bg-transparent text-[var(--color-text-main)]">
       <main className="mx-auto w-full max-w-[390px] pb-32">
         <header className="flex h-16 items-center px-4">
           <Link
@@ -217,7 +217,7 @@ export default async function LibraryPage({ searchParams }) {
                     </Link>
                   </div>
                 ) : (
-                  <div className="rounded-3xl bg-[var(--color-surface)] px-5 py-10 text-center">
+                  <div className="rounded-3xl bg-[rgba(240,238,229,0.78)] px-5 py-10 text-center backdrop-blur">
                     <BookIcon className="mx-auto h-14 w-14 text-[var(--color-text-accent)]" />
                     <h3 className="type-h3 mt-6">
                       You don&apos;t have any book in your &quot;To be read&quot; list
@@ -253,7 +253,7 @@ export default async function LibraryPage({ searchParams }) {
       </main>
 
       {hasBooks && effectiveBooks.length > 1 ? (
-        <div className="fixed inset-x-0 bottom-0 border-t border-[var(--color-surface)] bg-[var(--color-page)] px-6 pb-8 pt-6">
+        <div className="fixed inset-x-0 bottom-0 border-t border-[rgba(240,238,229,0.74)] bg-[rgba(250,249,245,0.84)] px-6 pb-8 pt-6 backdrop-blur">
           <div className="mx-auto max-w-2xl space-y-3">
             <Link
               href="/library/switch"

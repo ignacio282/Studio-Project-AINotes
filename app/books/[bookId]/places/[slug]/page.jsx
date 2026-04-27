@@ -68,8 +68,8 @@ export default async function PlaceProfilePage({ params, searchParams }) {
   const trackingMode = normalizeTrackingMode(book?.tracking_mode);
 
   return (
-    <div className="min-h-screen bg-[var(--color-page)] text-[var(--color-text-main)]">
-      <header className="sticky top-0 z-40 border-b border-[var(--color-surface)] bg-[var(--color-page)]">
+    <div className="min-h-screen bg-transparent text-[var(--color-text-main)]">
+      <header className="sticky top-0 z-40 bg-[rgba(250,249,245,0.78)] backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center gap-4 px-6 py-4">
           <Link href={`/books/${bookId}`} className="text-[var(--color-text-main)]" aria-label="Back to book">
             <BackArrowIcon className="h-6 w-6 text-[var(--color-text-main)]" />
@@ -82,7 +82,7 @@ export default async function PlaceProfilePage({ params, searchParams }) {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-6 px-6 py-6 pb-16">
-        <section className="rounded-[8px] bg-[var(--color-surface)] p-5">
+        <section className="rounded-[8px] bg-[rgba(240,238,229,0.78)] p-5 backdrop-blur">
           <div className="type-caption text-[var(--color-secondary)]">Place sheet</div>
           <h2 className="type-h2 mt-1 text-[var(--color-text-main)]">{snapshot.place_name}</h2>
           <p className="type-body mt-3 max-w-[62ch] text-[var(--color-secondary)]">

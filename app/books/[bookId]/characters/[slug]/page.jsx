@@ -231,8 +231,8 @@ export default async function CharacterProfilePage({ params, searchParams }) {
     };
 
   return (
-    <div className="min-h-screen bg-[var(--color-page)] text-[var(--color-text-main)]">
-      <header className="sticky top-0 z-40 border-b border-[var(--color-surface)] bg-[var(--color-page)]">
+    <div className="min-h-screen bg-transparent text-[var(--color-text-main)]">
+      <header className="sticky top-0 z-40 bg-[rgba(250,249,245,0.78)] backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-6 py-4">
           <Link href={`/books/${bookId}`} className="text-[var(--color-text-main)]" aria-label="Back to book">
             <BackArrowIcon className="h-6 w-6 text-[var(--color-text-main)]" />

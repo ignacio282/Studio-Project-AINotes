@@ -245,8 +245,8 @@ export default async function BookHubPage({ params, searchParams }) {
   });
 
   return (
-    <div className="min-h-screen bg-[var(--color-page)] text-[var(--color-text-main)]">
-      <header className="sticky top-0 z-40 border-b border-[var(--color-surface)] bg-[var(--color-page)]">
+    <div className="min-h-screen bg-transparent text-[var(--color-text-main)]">
+      <header className="sticky top-0 z-40 bg-[rgba(250,249,245,0.78)] backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center px-6 py-4">
           <Link href="/home" className="text-[var(--color-text-main)]">
             <BackArrowIcon className="h-6 w-6 text-[var(--color-text-main)]" />
@@ -255,7 +255,7 @@ export default async function BookHubPage({ params, searchParams }) {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-8 px-6 pb-44">
-        <section className="-mx-6 flex items-center gap-4 bg-[var(--color-surface)] px-6 py-5">
+        <section className="-mx-6 flex items-center gap-4 bg-[rgba(240,238,229,0.78)] px-6 py-5 backdrop-blur">
           <div className="h-28 w-20 overflow-hidden rounded-xl bg-white/60">
             {book?.cover_url ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -307,7 +307,7 @@ export default async function BookHubPage({ params, searchParams }) {
         />
       </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 bg-[var(--color-bg-subtle)] shadow-[0_-8px_20px_rgba(0,0,0,0.08)]">
+      <div className="fixed inset-x-0 bottom-0 z-40 bg-[rgba(247,246,243,0.86)] backdrop-blur">
         <div className="mx-auto max-w-2xl space-y-3 px-6 py-4">
           <BookChapterStartSheet
             bookId={bookId}

@@ -220,7 +220,7 @@ export default function BookHubTabs({
       {activeTab === "notes" && (
         <div className="pt-4">
           {effectiveNoteCount > 0 && showAssistantNotice && (
-            <div className="mb-5 rounded-2xl bg-[var(--color-accent-subtle)] p-4">
+            <div className="mb-5 rounded-2xl bg-[rgba(229,239,238,0.82)] p-4 backdrop-blur">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div
@@ -249,7 +249,7 @@ export default function BookHubTabs({
           </div>
 
           {!filtersAreDisabled && !filtersDisabled ? (
-            <div className="type-caption mb-4 rounded-xl bg-[var(--color-surface)] px-3 py-2 text-[var(--color-secondary)]">
+            <div className="type-caption mb-4 rounded-xl bg-[rgba(240,238,229,0.78)] px-3 py-2 text-[var(--color-secondary)] backdrop-blur">
               Filters are coming soon. You can browse notes by date for now.
             </div>
           ) : null}
@@ -265,7 +265,7 @@ export default function BookHubTabs({
               {(showAllNotes ? notesState : notesState.slice(0, 3)).map((n) => {
                 const href = `/books/${bookId}/chapters/${n.chapter_number}/notes/${n.id}`;
                 return (
-                  <div key={n.id} className="rounded-2xl bg-[var(--color-surface)] p-4">
+                  <div key={n.id} className="rounded-2xl bg-[rgba(240,238,229,0.78)] p-4 backdrop-blur">
                     <div className="flex items-start gap-3">
                       <Link href={href} className="min-w-0 flex-1">
                         <div className="type-title">
@@ -361,7 +361,7 @@ export default function BookHubTabs({
               description="Characters will appear here once they are mentioned in your notes."
             />
           ) : (
-            <div className="overflow-hidden rounded-2xl bg-[var(--color-surface)]">
+            <div className="overflow-hidden rounded-2xl bg-[rgba(240,238,229,0.78)] backdrop-blur">
               {characters.map((character, index) => {
                 const rowClass = `type-title flex items-center justify-between px-4 py-4 ${
                   index < characters.length - 1
@@ -403,7 +403,7 @@ export default function BookHubTabs({
               description="Places will appear here once they are mentioned in your notes."
             />
           ) : (
-            <div className="overflow-hidden rounded-2xl bg-[var(--color-surface)]">
+            <div className="overflow-hidden rounded-2xl bg-[rgba(240,238,229,0.78)] backdrop-blur">
               {normalizedPlaces.map((place, index) => {
                 const rowClass = `type-title flex items-center justify-between px-4 py-4 ${
                   index < normalizedPlaces.length - 1

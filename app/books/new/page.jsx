@@ -38,7 +38,7 @@ function createEmptyForm() {
 }
 
 const INPUT_CLASSNAME =
-  "type-body h-[54px] w-full rounded-lg border border-[#a19f99] bg-[#f0eee5] px-4 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)]";
+  "type-body h-[54px] w-full rounded-lg bg-[rgba(240,238,229,0.78)] px-4 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] backdrop-blur";
 
 function SearchIcon({ className = "h-6 w-6" }) {
   return (
@@ -57,7 +57,7 @@ function SearchIcon({ className = "h-6 w-6" }) {
 
 function SearchField({ value, onChange, placeholder, autoFocus = false }) {
   return (
-    <div className="flex h-14 items-center gap-2 rounded-lg border border-[#a19f99] bg-[#f0eee5] px-4">
+    <div className="flex h-14 items-center gap-2 rounded-lg bg-[rgba(240,238,229,0.78)] px-4 backdrop-blur">
       <SearchIcon className="h-6 w-6 shrink-0 text-[var(--color-secondary)]" />
       <input
         type="text"
@@ -338,7 +338,7 @@ function NewBookPageContent() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-[var(--color-page)] text-[var(--color-text-main)]">
+    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-transparent text-[var(--color-text-main)]">
       <header className="flex items-center px-4 pb-2 pt-8">
         <button
           type="button"
@@ -418,7 +418,7 @@ function NewBookPageContent() {
             </button>
           </div>
 
-          <div className="mt-4 rounded-lg bg-[#f0eee5] p-2">
+          <div className="mt-4 rounded-lg bg-[rgba(240,238,229,0.78)] p-2 backdrop-blur">
             <p className="type-body text-[var(--color-secondary)]">Can&apos;t find the book you are looking for?</p>
             <button
               type="button"
@@ -462,7 +462,7 @@ function NewBookPageContent() {
                     type="button"
                     key={asValue(result?.id)}
                     onClick={() => onSelectResult(result)}
-                    className="w-full rounded-lg bg-[#f0eee5] px-4 py-2 text-left"
+                    className="w-full rounded-lg bg-[rgba(240,238,229,0.78)] px-4 py-2 text-left backdrop-blur"
                   >
                     <div className="flex gap-4">
                       <div className="h-[71px] w-[48px] shrink-0 overflow-hidden rounded-lg bg-[#d8d2c5]">
@@ -580,7 +580,7 @@ function NewBookPageContent() {
             {error ? <p className="type-caption mt-4 text-red-700">{error}</p> : null}
           </div>
 
-          <div className="border-t border-[color:var(--rc-color-text-secondary)/15%] bg-[#f7f6f3] px-6 pb-6 pt-4">
+          <div className="bg-[rgba(247,246,243,0.84)] px-6 pb-6 pt-4 backdrop-blur">
             <button
               type="submit"
               disabled={submitting || !canSubmitBook}
@@ -597,7 +597,7 @@ function NewBookPageContent() {
 
 export default function NewBookPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[var(--color-page)]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-transparent" />}>
       <NewBookPageContent />
     </Suspense>
   );

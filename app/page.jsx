@@ -1674,7 +1674,7 @@ function createCandidateEntry(response, topic) {
 function NoteSummaryScreen({ session, completedAt, onBack, onReflect, onFinish, highlights, onCharacterClick }) {
   const timestampLabel = formatSessionTimestamp(completedAt);
   return (
-    <div className="flex h-screen flex-col bg-[var(--color-page)] text-[var(--color-text-main)]">
+    <div className="flex h-screen flex-col bg-[var(--rc-color-page)] text-[var(--color-text-main)]">
       <header className="border-b border-[var(--color-accent-subtle)] bg-[var(--color-text-on-accent)] px-6 py-5">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between">
           <button
@@ -1707,7 +1707,7 @@ function NoteSummaryScreen({ session, completedAt, onBack, onReflect, onFinish, 
           </div>
         </div>
       </main>
-      <footer className="border-t border-[var(--color-accent-subtle)] bg-[var(--color-page)] px-6 py-6">
+      <footer className="border-t border-[var(--color-accent-subtle)] bg-[var(--rc-color-page)] px-6 py-6">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
           <button
             type="button"
@@ -1743,7 +1743,7 @@ function ReflectionCompleteScreen({
   const hasChangeSummary = typeof changeSummary === "string" && changeSummary.trim().length > 0;
   const changeSummaryContent = hasChangeSummary ? changeSummary.trim() : "";
   return (
-    <div className="flex h-screen flex-col bg-[var(--color-page)] text-[var(--color-text-main)]">
+    <div className="flex h-screen flex-col bg-[var(--rc-color-page)] text-[var(--color-text-main)]">
       <header className="border-b border-[var(--color-accent-subtle)] bg-[var(--color-text-on-accent)] px-6 py-5">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-center">
           <div className="text-center">
@@ -1778,7 +1778,7 @@ function ReflectionCompleteScreen({
           </div>
         </div>
       </main>
-      <footer className="border-t border-[var(--color-accent-subtle)] bg-[var(--color-page)] px-6 py-6">
+      <footer className="border-t border-[var(--color-accent-subtle)] bg-[var(--rc-color-page)] px-6 py-6">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
           <button
             type="button"
@@ -1818,7 +1818,7 @@ function SummarySheet({ open, onClose, session, highlights, onCharacterClick }) 
           />
           {/* Sheet container */}
           <motion.div
-            className="relative z-10 flex w-full max-w-2xl flex-col rounded-t-3xl bg-[var(--color-page)] px-4 pb-8 pt-6"
+            className="relative z-10 flex w-full max-w-2xl flex-col rounded-t-3xl bg-[var(--rc-color-page)] px-4 pb-8 pt-6"
             initial={{ y: 400 }}
             animate={{ y: 0 }}
             exit={{ y: 400 }}
@@ -1878,7 +1878,7 @@ function CharacterBottomSheet({ open, onClose, name, role, shortBio, relationshi
             exit={{ opacity: 0 }}
           />
           <motion.div
-            className="relative z-10 w-full max-w-2xl rounded-t-3xl bg-[var(--color-page)] px-4 pb-8 pt-6"
+            className="relative z-10 w-full max-w-2xl rounded-t-3xl bg-[var(--rc-color-page)] px-4 pb-8 pt-6"
             initial={{ y: 400 }}
             animate={{ y: 0 }}
             exit={{ y: 400 }}
@@ -2018,7 +2018,7 @@ function ChapterBoundarySheet({
                   onChange={(event) => onChange(event.target.value)}
                   disabled={isSaving}
                   placeholder={getProgressSessionPlaceholder(trackingMode)}
-                  className="type-body mt-2 w-full rounded-2xl border border-[var(--color-accent-subtle)] bg-[var(--color-page)] px-4 py-3 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="type-body mt-2 w-full rounded-2xl border border-[var(--color-accent-subtle)] bg-[var(--rc-color-page)] px-4 py-3 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </label>
 
@@ -3701,7 +3701,7 @@ export default function JournalingPage(props) {
 
   if (flowStep === FLOW_STATES.REFLECTION) {
     return (
-      <div className="flex h-screen flex-col bg-[var(--color-page)] text-[var(--color-text-main)]">
+      <div className="flex h-screen flex-col bg-[var(--rc-color-page)] text-[var(--color-text-main)]">
         <header className="sticky top-0 z-30 border-b border-[var(--color-accent-subtle)] bg-[var(--color-text-on-accent)] px-6 py-5">
           <div className="mx-auto flex w-full max-w-3xl items-center justify-between">
             <button
@@ -3729,19 +3729,19 @@ export default function JournalingPage(props) {
             {isFetchingReflectionQuestion ? <TypingIndicator /> : null}
           </div>
         </main>
-        <div className="sticky bottom-0 z-30 border-t border-[var(--color-surface)] bg-[var(--color-page)] px-0">
+        <div className="sticky bottom-0 z-30 border-t border-[var(--color-surface)] bg-[var(--rc-color-page)] px-0">
           {summaryAvailable ? (
             <button
               type="button"
               onClick={() => setShowSummary((prev) => !prev)}
-              className="type-button flex w-full items-center justify-center gap-2 border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-[var(--color-text-main)] transition hover:text-[var(--color-text-accent)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="type-button flex w-full items-center justify-center gap-2 border-b border-[var(--color-surface)] bg-[var(--rc-color-page)] px-4 py-2 text-[var(--color-text-main)] transition hover:text-[var(--color-text-accent)] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isUpdatingSummary}
             >
               <span>{isUpdatingSummary ? "Capturing notes..." : "See Notes"}</span>
               <ChevronDown open={showSummary} />
             </button>
           ) : isUpdatingSummary ? (
-            <div className="type-button flex w-full items-center justify-center border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-[var(--color-secondary)]">
+            <div className="type-button flex w-full items-center justify-center border-b border-[var(--color-surface)] bg-[var(--rc-color-page)] px-4 py-2 text-[var(--color-secondary)]">
               <span>Capturing notes...</span>
             </div>
           ) : null}
@@ -3830,7 +3830,7 @@ export default function JournalingPage(props) {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-[var(--color-page)] text-[var(--color-text-main)]">
+    <div className="flex h-screen flex-col bg-[var(--rc-color-page)] text-[var(--color-text-main)]">
       {/* Top app bar with session context and completion affordance */}
       <header className="sticky top-0 z-30 border-b border-[var(--color-accent-subtle)] bg-[var(--color-text-on-accent)] px-6 py-5">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
@@ -3869,19 +3869,19 @@ export default function JournalingPage(props) {
         </div>
       </main>
       {/* Ribbon toggle for opening the structured summary + composer kept fixed */}
-      <div className="sticky bottom-0 z-30 border-t border-[var(--color-surface)] bg-[var(--color-page)] px-0">
+      <div className="sticky bottom-0 z-30 border-t border-[var(--color-surface)] bg-[var(--rc-color-page)] px-0">
           {summaryAvailable ? (
             <button
               type="button"
               onClick={() => setShowSummary((prev) => !prev)}
-              className="type-button flex w-full items-center justify-center gap-2 border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-[var(--color-text-main)] transition hover:text-[var(--color-text-accent)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="type-button flex w-full items-center justify-center gap-2 border-b border-[var(--color-surface)] bg-[var(--rc-color-page)] px-4 py-2 text-[var(--color-text-main)] transition hover:text-[var(--color-text-accent)] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isUpdatingSummary}
             >
               <span>{isUpdatingSummary ? "Capturing notes..." : "See Notes"}</span>
               <ChevronDown open={showSummary} />
             </button>
           ) : isUpdatingSummary ? (
-            <div className="type-button flex w-full items-center justify-center border-b border-[var(--color-surface)] bg-[var(--color-page)] px-4 py-2 text-[var(--color-secondary)]">
+            <div className="type-button flex w-full items-center justify-center border-b border-[var(--color-surface)] bg-[var(--rc-color-page)] px-4 py-2 text-[var(--color-secondary)]">
               <span>Capturing notes...</span>
             </div>
           ) : null}

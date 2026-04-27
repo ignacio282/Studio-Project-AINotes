@@ -46,11 +46,11 @@ function Section({ title, icon: Icon, tone = "default", children }) {
     <section
       className={[
         "rounded-[8px] p-5",
-        tone === "accent" ? "bg-[var(--color-accent-subtle)]" : "bg-[var(--color-surface)]",
+        tone === "accent" ? "bg-[rgba(229,239,238,0.82)] backdrop-blur" : "bg-[rgba(240,238,229,0.78)] backdrop-blur",
       ].join(" ")}
     >
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[var(--color-page)] text-[var(--color-text-accent)]">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[rgba(250,249,245,0.72)] text-[var(--color-text-accent)]">
           <Icon className="h-4.5 w-4.5" aria-hidden="true" />
         </div>
         <h2 className="type-title text-[var(--color-text-main)]">{title}</h2>
@@ -76,8 +76,8 @@ function PlaceLoadingState() {
 
 function SparsePlaceState({ placeName, onDelete }) {
   return (
-    <section className="rounded-[8px] bg-[var(--color-surface)] p-8 text-center">
-      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-[8px] bg-[var(--color-page)] text-[var(--color-text-accent)]">
+    <section className="rounded-[8px] bg-[rgba(240,238,229,0.78)] p-8 text-center backdrop-blur">
+      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-[8px] bg-[rgba(250,249,245,0.72)] text-[var(--color-text-accent)]">
         <MapPin className="h-5 w-5" aria-hidden="true" />
       </div>
       <h2 className="type-title mt-4 text-[var(--color-text-main)]">Not enough information yet</h2>
@@ -87,7 +87,7 @@ function SparsePlaceState({ placeName, onDelete }) {
       <button
         type="button"
         onClick={onDelete}
-        className="type-button mt-5 rounded-[8px] bg-[var(--color-page)] px-4 py-2 text-[var(--color-secondary)] transition hover:text-[var(--color-text-main)]"
+        className="type-button mt-5 rounded-[8px] bg-[rgba(250,249,245,0.72)] px-4 py-2 text-[var(--color-secondary)] transition hover:text-[var(--color-text-main)]"
       >
         Delete this place
       </button>
@@ -114,7 +114,7 @@ function ChapterBadges({ chapters, trackingMode }) {
       {values.map((chapter) => (
         <span
           key={chapter}
-          className="type-caption rounded-full bg-[var(--color-page)] px-3 py-1 text-[var(--color-secondary)]"
+          className="type-caption rounded-full bg-[rgba(250,249,245,0.72)] px-3 py-1 text-[var(--color-secondary)]"
         >
           {formatProgressLabel(normalized, chapter)}
         </span>
@@ -150,7 +150,7 @@ function CharactersList({ items }) {
   return (
     <div className="flex flex-wrap gap-2">
       {values.map((item) => (
-        <span key={item.name} className="type-body rounded-full bg-[var(--color-page)] px-3 py-1 text-[var(--color-text-main)]">
+        <span key={item.name} className="type-body rounded-full bg-[rgba(250,249,245,0.72)] px-3 py-1 text-[var(--color-text-main)]">
           {item.name}
         </span>
       ))}
