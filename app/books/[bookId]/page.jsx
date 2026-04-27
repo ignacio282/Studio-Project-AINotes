@@ -315,12 +315,22 @@ export default async function BookHubPage({ params, searchParams }) {
             trackingMode={trackingMode}
             openOnMount={openStartNote}
           />
-          <Link
-            href={`/books/${bookId}/assistant`}
-            className="type-button block text-center text-[var(--color-text-accent)]"
-          >
-            Open assistant
-          </Link>
+          {noteCount > 0 ? (
+            <Link
+              href={`/books/${bookId}/assistant`}
+              className="type-button block text-center text-[var(--color-text-accent)]"
+            >
+              Open assistant
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="type-button block w-full cursor-not-allowed text-center text-[var(--color-text-disabled)]"
+            >
+              Open assistant
+            </button>
+          )}
         </div>
       </div>
     </div>

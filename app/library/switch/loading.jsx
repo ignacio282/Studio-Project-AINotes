@@ -1,11 +1,5 @@
-import RouteLoadingScreen from "@/components/ui/RouteLoadingScreen";
+import RouteSkeletonScreen from "@/components/ui/RouteSkeletonScreen";
 
 export default function SwitchBookLoading() {
-  return (
-    <RouteLoadingScreen
-      eyebrow="Library"
-      title="Loading your books"
-      detail="Fetching your library so you can switch context without double-tapping."
-    />
-  );
+  return <RouteSkeletonScreen status="Loading your books" />;
 }

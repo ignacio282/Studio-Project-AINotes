@@ -1,10 +1,5 @@
-import RouteLoadingScreen from "@/components/ui/RouteLoadingScreen";
+import RouteSkeletonScreen from "@/components/ui/RouteSkeletonScreen";
 
 export default function AppLoading() {
-  return (
-    <RouteLoadingScreen
-      title="Opening Scriba"
-      detail="Getting the next screen ready so taps feel responsive, even when the route takes a moment."
-    />
-  );
+  return <RouteSkeletonScreen status="Opening Scriba" />;
 }

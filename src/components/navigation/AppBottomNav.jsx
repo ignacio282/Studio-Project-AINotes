@@ -64,12 +64,13 @@ function triggerHaptic() {
   }
 }
 
-function ActionOption({ title, subtitle, icon, onClick }) {
+function ActionOption({ title, subtitle, icon, onClick, disabled = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-[8px] bg-[#F0EEE5] p-4 text-center transition hover:bg-[color:var(--rc-color-accent-subtle)/45%]"
+      disabled={disabled}
+      className="w-full rounded-[8px] bg-[#F0EEE5] p-4 text-center transition hover:bg-[color:var(--rc-color-accent-subtle)/45%] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#F0EEE5]"
     >
       <div className="mx-auto flex w-full max-w-[326px] flex-col items-center text-center">
         <span className="flex h-6 w-6 items-center justify-center">{icon}</span>
@@ -85,11 +86,14 @@ export default function AppBottomNav({
   hasActionContext = false,
   currentBookId = "",
   currentBookTitle = "",
+  currentBookNoteCount = null,
 }) {
   const router = useRouter();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   const canOpenSheet = hasActionContext && Boolean(currentBookId);
+  const canAskAssistant =
+    currentBookNoteCount === null || Number(currentBookNoteCount) > 0;
   const safeBookTitle = useMemo(
     () => (typeof currentBookTitle === "string" && currentBookTitle.trim() ? currentBookTitle.trim() : "Current book"),
     [currentBookTitle],
@@ -113,7 +117,7 @@ export default function AppBottomNav({
   };
 
   const handleAskAssistant = () => {
-    if (!currentBookId) return;
+    if (!currentBookId || !canAskAssistant) return;
     triggerHaptic();
     closeSheet();
     router.push(`/books/${encodeURIComponent(currentBookId)}/assistant`);
@@ -194,6 +198,7 @@ export default function AppBottomNav({
                     subtitle="Find details, summaries, or connections in your notes."
                     icon={<AssistantIcon className="h-6 w-6" />}
                     onClick={handleAskAssistant}
+                    disabled={!canAskAssistant}
                   />
                 </div>
                 <button

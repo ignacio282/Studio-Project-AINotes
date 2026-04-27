@@ -61,6 +61,58 @@ function CloseIcon({ className }) {
   );
 }
 
+function EmptyNotesIcon({ className = "" }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} aria-hidden>
+      <path
+        d="M12 6h18.5L38 13.5V40a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm17 3.5V15h5.5L29 9.5ZM17 21h14v3H17v-3Zm0 7h14v3H17v-3Zm0 7h9v3h-9v-3Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function EmptyCharactersIcon({ className = "" }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} aria-hidden>
+      <path
+        d="M24 6a9 9 0 1 1 0 18 9 9 0 0 1 0-18Zm0 22c9 0 16 4.5 16 10.5V42H8v-3.5C8 32.5 15 28 24 28Zm0-18a5 5 0 1 0 0 10 5 5 0 0 0 0-10Zm0 22c-6.6 0-11.5 2.8-11.9 6H35.9c-.4-3.2-5.3-6-11.9-6Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function EmptyPlacesIcon({ className = "" }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} aria-hidden>
+      <path
+        d="M24 4c7.2 0 13 5.8 13 13 0 8.9-10.3 22.3-11.5 23.8L24 42.7l-1.5-1.9C21.3 39.3 11 25.9 11 17 11 9.8 16.8 4 24 4Zm0 4c-5 0-9 4-9 9 0 5.5 5.4 14 9 19.1 3.6-5.1 9-13.6 9-19.1 0-5-4-9-9-9Zm0 5.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function BookHubEmptyState({ icon: Icon, title, description }) {
+  return (
+    <div className="h-[242px] rounded-[8px] p-4 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center text-[var(--color-accent)]">
+        <Icon className="h-12 w-12" />
+      </div>
+
+      <div className="mx-auto mt-4 w-full max-w-[310px]">
+        <h3 className="type-title text-[#2A2A2A]">
+          {title}
+        </h3>
+        <p className="type-body mt-2 text-[#595853]">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function BookHubTabs({
   bookId,
   trackingMode,
@@ -167,7 +219,7 @@ export default function BookHubTabs({
 
       {activeTab === "notes" && (
         <div className="pt-4">
-          {showAssistantNotice && (
+          {effectiveNoteCount > 0 && showAssistantNotice && (
             <div className="mb-5 rounded-2xl bg-[var(--color-accent-subtle)] p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -203,18 +255,11 @@ export default function BookHubTabs({
           ) : null}
 
           {notesState.length === 0 ? (
-            <div className="rounded-2xl bg-[var(--color-surface)] p-6">
-              <div className="type-title text-[var(--color-text-main)]">Start your reading memory</div>
-              <p className="type-body mt-2 text-[var(--color-secondary)]">
-                Add your first note for this book and Scriba will organize the summary, characters, places, and reflections here.
-              </p>
-              <Link
-                href={`/books/${bookId}?startNote=1`}
-                className="type-button mt-4 inline-flex rounded-[8px] bg-[var(--color-accent)] px-4 py-2 text-[var(--color-text-on-accent)]"
-              >
-                Start note
-              </Link>
-            </div>
+            <BookHubEmptyState
+              icon={EmptyNotesIcon}
+              title="Start your reading memory"
+              description="Write your first note for this book and Scriba will organize the summary, characters, places, and reflections here."
+            />
           ) : (
             <div className="space-y-4">
               {(showAllNotes ? notesState : notesState.slice(0, 3)).map((n) => {
@@ -310,9 +355,11 @@ export default function BookHubTabs({
             {formatCount(characters.length, "character", "characters")}
           </div>
           {characters.length === 0 ? (
-            <div className="type-body rounded-2xl bg-[var(--color-surface)] p-6 text-[var(--color-secondary)]">
-              Characters will appear once they are mentioned in your notes.
-            </div>
+            <BookHubEmptyState
+              icon={EmptyCharactersIcon}
+              title="No characters yet"
+              description="Characters will appear here once they are mentioned in your notes."
+            />
           ) : (
             <div className="overflow-hidden rounded-2xl bg-[var(--color-surface)]">
               {characters.map((character, index) => {
@@ -350,9 +397,11 @@ export default function BookHubTabs({
             {formatCount(normalizedPlaces.length, "place", "places")}
           </div>
           {normalizedPlaces.length === 0 ? (
-            <div className="type-body rounded-2xl bg-[var(--color-surface)] p-6 text-[var(--color-secondary)]">
-              Places will appear once they are mentioned in your notes.
-            </div>
+            <BookHubEmptyState
+              icon={EmptyPlacesIcon}
+              title="No places yet"
+              description="Places will appear here once they are mentioned in your notes."
+            />
           ) : (
             <div className="overflow-hidden rounded-2xl bg-[var(--color-surface)]">
               {normalizedPlaces.map((place, index) => {
