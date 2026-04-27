@@ -1,11 +1,5 @@
-import RouteLoadingScreen from "@/components/ui/RouteLoadingScreen";
+import RouteSkeletonScreen from "@/components/ui/RouteSkeletonScreen";
 
 export default function BookRouteLoading() {
-  return (
-    <RouteLoadingScreen
-      eyebrow="Book"
-      title="Loading your book workspace"
-      detail="Bringing in notes, assistant context, and chapter memory for this book."
-    />
-  );
+  return <RouteSkeletonScreen status="Loading book workspace" />;
 }

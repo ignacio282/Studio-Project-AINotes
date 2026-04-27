@@ -423,6 +423,7 @@ export default async function HomePage({ searchParams }) {
         hasActionContext={hasCurrentBook}
         currentBookId={effectiveCurrentBook?.id || ""}
         currentBookTitle={effectiveCurrentBook?.title || ""}
+        currentBookNoteCount={noteCount}
       />
     </div>
   );

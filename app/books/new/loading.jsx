@@ -1,11 +1,5 @@
-import RouteLoadingScreen from "@/components/ui/RouteLoadingScreen";
+import RouteSkeletonScreen from "@/components/ui/RouteSkeletonScreen";
 
 export default function NewBookLoading() {
-  return (
-    <RouteLoadingScreen
-      eyebrow="Library"
-      title="Preparing book setup"
-      detail="Getting the add-book flow ready."
-    />
-  );
+  return <RouteSkeletonScreen status="Preparing book setup" />;
 }
