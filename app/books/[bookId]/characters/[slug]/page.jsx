@@ -8,6 +8,7 @@ import QaLoadingPage from "@/components/qa/QaLoadingPage";
 import MissingResourcePage from "@/components/errors/MissingResourcePage";
 import { resolveQaState } from "@/lib/qa/state";
 import { normalizeTrackingMode } from "@/lib/books/progress";
+import { getCharacterReadiness } from "@/lib/characters/readiness";
 import { buildCharacterSnapshotFromKnowledge, fetchCharacterKnowledge } from "@/lib/knowledge/read";
 
 export const dynamic = "force-dynamic";
@@ -211,11 +212,25 @@ export default async function CharacterProfilePage({ params, searchParams }) {
   if (Object.keys(noteLinks).length === 0) {
     noteLinks = buildNoteLinks(notes, bookId);
   }
+  const profileReadiness = getCharacterReadiness({
+    mentionCount: knowledge?.entity?.mention_count,
+    sources: chapters,
+    relevantNotes: notes,
+    profile: knowledge?.entity?.profile,
+    relationships: knowledgeCharacter?.relationships || character?.relationships,
+    timeline: knowledgeCharacter?.timeline || character?.timeline,
+    role: knowledgeCharacter?.role || character?.role,
+    summary: knowledge?.entity?.profile?.summary,
+    shortBio: knowledgeCharacter?.short_bio || character?.short_bio,
+    fullBio: knowledgeCharacter?.full_bio || character?.full_bio,
+  });
   const snapshotVersion = getSnapshotVersion(snapshot);
   const displaySnapshot =
-    snapshotVersion >= 5 && isSnapshotFreshForCharacter(snapshot, knowledgeCharacter || character)
-      ? snapshot
-      : knowledgeSnapshot || snapshot;
+    profileReadiness.ready
+      ? snapshotVersion >= 5 && isSnapshotFreshForCharacter(snapshot, knowledgeCharacter || character)
+        ? snapshot
+        : knowledgeSnapshot || snapshot
+      : null;
   const safeCharacter =
     knowledgeCharacter ||
     character || {
@@ -255,6 +270,7 @@ export default async function CharacterProfilePage({ params, searchParams }) {
           initialSnapshot={displaySnapshot}
           trackingMode={trackingMode}
           noteLinks={noteLinks}
+          profileReadiness={profileReadiness}
         />
       </main>
     </div>

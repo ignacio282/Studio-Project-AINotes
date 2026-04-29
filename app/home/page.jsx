@@ -72,6 +72,7 @@ function formatPercent(value) {
 }
 
 function hasCharacterDetail(character) {
+  if (character?.ready === false) return false;
   const role = typeof character?.role === "string" ? character.role.trim().toLowerCase() : "";
   const summary = typeof character?.summary === "string" ? character.summary.trim().toLowerCase() : "";
   const subtitle = typeof character?.subtitle === "string" ? character.subtitle.trim().toLowerCase() : "";
@@ -128,8 +129,13 @@ export default async function HomePage({ searchParams }) {
   const daysAgoLabel = hasCurrentBook
     ? effectiveCurrentBook?.daysAgoLabel?.trim() || "No reading sessions logged yet."
     : "Add your first book to start tracking progress.";
+  const storyReady = Boolean(effectiveCurrentBook?.storyReady);
   const storySoFar = hasCurrentBook
-    ? effectiveCurrentBook?.storySoFar?.trim() || "No reading summary yet. Write a note to build your story summary."
+    ? storyReady
+      ? effectiveCurrentBook?.storySoFar?.trim() || "No reading summary yet. Write a note to build your story summary."
+      : noteCount > 0
+        ? "Write another note or two so Scriba can build a useful story summary without guessing."
+        : "No reading summary yet. Write a note to build your story summary."
     : "Your reading summaries will appear here after you add a book and write your first note.";
   const storyContext = effectiveCurrentBook?.storyContext || {};
   const contextCharacters = Array.isArray(storyContext.characters) ? storyContext.characters.filter(Boolean).slice(0, 3) : [];
@@ -137,7 +143,9 @@ export default async function HomePage({ searchParams }) {
     hasCurrentBook && Array.isArray(effectiveCurrentBook?.topCharacters) && effectiveCurrentBook.topCharacters.length > 0
       ? effectiveCurrentBook.topCharacters.slice(0, 4)
       : [];
-  const topCharacters = baseCharacters.slice(0, 4);
+  const readyCharacters = baseCharacters.filter((character) => character?.ready !== false && hasCharacterDetail(character));
+  const pendingCharacterCount = baseCharacters.length - readyCharacters.length;
+  const topCharacters = readyCharacters.slice(0, 4);
   const coverSrc = effectiveCurrentBook?.cover_url || "";
   const canShowProgress =
     hasCurrentBook &&
@@ -278,7 +286,7 @@ export default async function HomePage({ searchParams }) {
                     </div>
                   </div>
                   <div className="rounded-[5px] bg-[rgba(250,249,245,0.72)] px-3 py-3">
-                    <div className="type-caption text-[#A19F99]">Latest setting from notes</div>
+                    <div className="type-caption text-[#A19F99]">Last setting</div>
                     <div className="type-title mt-1 truncate text-[#2A2A2A]">
                       {storyContext.setting || "Not clear yet"}
                     </div>
@@ -371,7 +379,9 @@ export default async function HomePage({ searchParams }) {
                       })
                 ) : (
                   <div className="type-body rounded-[8px] bg-[rgba(240,238,229,0.78)] px-4 py-5 text-[#595853] backdrop-blur">
-                    Important characters will show up here once they are mentioned in your notes.
+                    {pendingCharacterCount > 0
+                      ? "Scriba has spotted character names. Write another note or two with what they do, want, or how they connect before their profiles appear here."
+                      : "Important characters will show up here once they are mentioned in your notes."}
                   </div>
                 )}
               </div>

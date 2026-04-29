@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { requireUser } from "@/lib/supabase/require-user";
 import { getAiConfig } from "@/lib/ai/client";
 import { formatProgressLabel, normalizeTrackingMode } from "@/lib/books/progress";
+import { getCharacterReadiness } from "@/lib/characters/readiness";
 import { fetchCharacterKnowledge } from "@/lib/knowledge/read";
 
 export const runtime = "nodejs";
@@ -274,7 +275,7 @@ function formatNoteBlock(note: NoteRow, trackingMode: string): string {
 function extractCharacterMemory(rows: MemoryRow[], characterName: string): MemoryRow[] {
   const target = characterName.toLowerCase();
   const matching = rows.filter((row) => JSON.stringify(row.summary ?? {}).toLowerCase().includes(target));
-  return (matching.length > 0 ? matching : rows.slice(-4)).slice(-8);
+  return matching.slice(-8);
 }
 
 function extractCharacterNotes(notes: NoteRow[], characterName: string): NoteRow[] {
@@ -555,6 +556,24 @@ function buildDeterministicSnapshot({
   };
 }
 
+function buildSparseSnapshot(character: CharacterRow): CharacterSnapshot {
+  return {
+    characterSheetVersion: CHARACTER_SHEET_VERSION,
+    roleLabel: "Still gathering context",
+    summary: `Scriba has noticed ${character.name}, but needs more story context before it can build a trustworthy profile.`,
+    quickMemory: "",
+    roleInStory: "",
+    developmentArc: "",
+    traits: [],
+    motivations: [],
+    distinctives: [],
+    relationships: [],
+    timeline: [],
+    evidence: [],
+    openQuestions: [],
+  };
+}
+
 function createFallbackSnapshot({
   bookId,
   slug,
@@ -733,6 +752,37 @@ export async function POST(
     const fallbackSummary =
       buildDeterministicSummary(characterRow, knowledge, sources) ||
       `${characterRow.name} appears in your notes, but Scriba needs more detail before it can summarize them confidently.`;
+    const readiness = getCharacterReadiness({
+      mentionCount: knowledge?.entity.mention_count,
+      sources,
+      relevantNotes,
+      relevantMemory,
+      profile: knowledge?.entity.profile,
+      relationships: canonicalRelationships.length > 0 ? canonicalRelationships : characterRow.relationships,
+      timeline: knowledge?.timeline.length ? knowledge.timeline : characterRow.timeline,
+      role: characterRow.role,
+      summary: knowledge?.entity.profile?.summary,
+      shortBio: characterRow.short_bio,
+      fullBio: characterRow.full_bio,
+    });
+
+    if (!readiness.ready) {
+      const structured = buildSparseSnapshot(characterRow);
+      return Response.json({
+        snapshot: createFallbackSnapshot({
+          bookId,
+          slug,
+          userId: user.id,
+          character: characterRow,
+          structured,
+          sources,
+          maxChapter,
+        }),
+        ready: false,
+        generated: false,
+        readiness,
+      });
+    }
 
     let structured: CharacterSnapshot;
     if (mock) {
@@ -800,9 +850,11 @@ Rules:
 - This is not a database report. Write polished reader-facing interface copy for someone trying to remember and understand the character.
 - Translate the reader's notes into casual, familiar, complete prose. Do not dump raw snippets or truncated text.
 - Use only the evidence above. Do not use outside book knowledge.
-- The summary must explain who the character is and what role they play so far in 1-2 concrete sentences.
+- The summary must explain who the character is and what role they play so far in 1-2 concrete, stable sentences.
+- The summary should prioritize enduring role, motivation, identity, and recurring relationship patterns over one-off scene details.
 - quickMemory should be the "what should I remember about this character?" paragraph.
-- roleInStory should explain the character's narrative function up to the current chapter.
+- roleInStory should explain the character's narrative function up to the current chapter in generalized, reader-facing prose.
+- Put specific scene beats, locations, reveals, and actions in timeline, evidence, or relationship sections unless they define the character's core role.
 - developmentArc should explain how the character has changed or what pattern has become clearer over time.
 - Traits are stable personality/behavior qualities inferred from evidence; include a short evidence phrase.
 - Motivations are goals, desires, fears, or reasons behind actions; include a short evidence phrase.

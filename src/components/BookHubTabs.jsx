@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import KebabIcon from "@/components/KebabIcon";
 import ActionBottomSheet from "@/components/ui/ActionBottomSheet";
 import { formatProgressLabel, normalizeTrackingMode } from "@/lib/books/progress";
@@ -37,17 +38,6 @@ function normalizePlace(place) {
       ? place.slug.trim()
       : slugifyPlaceName(name);
   return name ? { name, slug } : null;
-}
-
-function ChevronRightIcon({ className }) {
-  return (
-    <svg viewBox="0 0 20 20" className={className} aria-hidden>
-      <path
-        fill="currentColor"
-        d="M7.22 4.47a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 1 1-1.06-1.06L10.94 10 7.22 6.28a.75.75 0 0 1 0-1.06Z"
-      />
-    </svg>
-  );
 }
 
 function CloseIcon({ className }) {
@@ -248,12 +238,6 @@ export default function BookHubTabs({
             {formatCount(effectiveNoteCount, "note", "notes")}
           </div>
 
-          {!filtersAreDisabled && !filtersDisabled ? (
-            <div className="type-caption mb-4 rounded-xl bg-[rgba(240,238,229,0.78)] px-3 py-2 text-[var(--color-secondary)] backdrop-blur">
-              Filters are coming soon. You can browse notes by date for now.
-            </div>
-          ) : null}
-
           {notesState.length === 0 ? (
             <BookHubEmptyState
               icon={EmptyNotesIcon}
@@ -376,7 +360,7 @@ export default function BookHubTabs({
                       className={`${rowClass} transition hover:bg-[color:var(--rc-color-text-secondary)/8%]`}
                     >
                       <span>{character.name}</span>
-                      <ChevronRightIcon className="h-4 w-4 text-[var(--color-secondary)]" />
+                      <ChevronRight className="h-4 w-4 text-[var(--color-secondary)]" />
                     </Link>
                   );
                 }
@@ -418,7 +402,7 @@ export default function BookHubTabs({
                       className={`${rowClass} transition hover:bg-[color:var(--rc-color-text-secondary)/8%]`}
                     >
                       <span>{place.name}</span>
-                      <ChevronRightIcon className="h-4 w-4 text-[var(--color-secondary)]" />
+                      <ChevronRight className="h-4 w-4 text-[var(--color-secondary)]" />
                     </Link>
                   );
                 }
