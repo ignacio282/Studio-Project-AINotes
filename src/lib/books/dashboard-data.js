@@ -3,6 +3,7 @@ import {
   getProgressTotalValue,
   normalizeTrackingMode,
 } from "@/lib/books/progress";
+import { getBookContextReadiness, getCharacterReadiness } from "@/lib/characters/readiness";
 import { fetchKnowledgeEntitiesForBooks } from "@/lib/knowledge/read";
 
 function toArray(value) {
@@ -211,6 +212,7 @@ function buildBookStats(books, notes, memoryRows, characters, knowledgeEntities 
     const summarySource = furthestMemory?.summary ?? furthestProgressNote?.ai_summary;
     const storySoFar = summarizeFromAi(summarySource);
     const summaryLists = getSummaryLists(summarySource);
+    const storyReadiness = getBookContextReadiness({ noteCount, ...summaryLists });
 
     const mentionCounts = new Map();
     const mentionLabels = new Map();
@@ -239,6 +241,15 @@ function buildBookStats(books, notes, memoryRows, characters, knowledgeEntities 
               const snapshotFields = getSnapshotCardFields(snapshotLookup.get(`${book.id}::${row.slug}`));
               const summary = snapshotFields.summary || row.profile?.summary || "";
               const role = snapshotFields.role || row.profile?.role || "";
+              const readiness = getCharacterReadiness({
+                mentionCount: row.mention_count,
+                sourceCount: row.first_chapter && row.last_chapter && row.first_chapter !== row.last_chapter ? 2 : 1,
+                profile: row.profile,
+                relationships: row.profile?.relationships,
+                timeline: row.profile?.timeline,
+                role: row.profile?.role,
+                summary: row.profile?.summary,
+              });
               return {
                 name: row.name,
                 slug: row.slug || "",
@@ -248,6 +259,8 @@ function buildBookStats(books, notes, memoryRows, characters, knowledgeEntities 
                 firstChapter: row.first_chapter ?? null,
                 lastChapter: row.last_chapter ?? null,
                 mentions: Number(row.mention_count || 0),
+                ready: readiness.ready,
+                readiness,
               };
             })
         : Array.from(mentionCounts.entries())
@@ -262,6 +275,16 @@ function buildBookStats(books, notes, memoryRows, characters, knowledgeEntities 
               const snapshotFields = row?.slug ? getSnapshotCardFields(snapshotLookup.get(`${book.id}::${row.slug}`)) : {};
               const summary = snapshotFields.summary || row?.short_bio || "";
               const role = snapshotFields.role || row?.role || "";
+              const readiness = getCharacterReadiness({
+                mentionCount: mentions,
+                sourceCount: row?.first_chapter && row?.last_chapter && row.first_chapter !== row.last_chapter ? 2 : 1,
+                profile: row?.profile,
+                relationships: row?.relationships,
+                timeline: row?.timeline,
+                role: row?.role,
+                shortBio: row?.short_bio,
+                fullBio: row?.full_bio,
+              });
               return {
                 name: row?.name || mentionLabels.get(normalizedName) || normalizedName,
                 slug: row?.slug || "",
@@ -271,6 +294,8 @@ function buildBookStats(books, notes, memoryRows, characters, knowledgeEntities 
                 firstChapter: null,
                 lastChapter: null,
                 mentions,
+                ready: readiness.ready,
+                readiness,
               };
             });
     const storyContext = buildStoryContext(summaryLists, topCharacters, trackingMode, lastProgressValue);
@@ -285,7 +310,11 @@ function buildBookStats(books, notes, memoryRows, characters, knowledgeEntities 
       lastProgressValue,
       lastProgressLabel: formatProgressLabel(trackingMode, lastProgressValue),
       totalProgressValue,
-      storySoFar,
+      storySoFar: storyReadiness.ready
+        ? storySoFar
+        : "",
+      storyReady: storyReadiness.ready,
+      storyReadiness,
       storyContext,
       daysAgoLabel: getDaysAgoLabel(latestNoteAt),
       topCharacters,

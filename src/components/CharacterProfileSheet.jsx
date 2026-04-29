@@ -161,10 +161,10 @@ function EmptyLine({ label = "Not captured yet" }) {
 
 function StatChip({ label, value, icon: Icon }) {
   return (
-    <div className="rounded-[8px] bg-[rgba(250,249,245,0.72)] px-3 py-3">
-      <div className="flex items-center gap-2 text-[var(--color-secondary)]">
-        {Icon ? <Icon className="h-3.5 w-3.5 text-[var(--color-text-accent)]" aria-hidden="true" /> : null}
-        <div className="type-caption">{label}</div>
+    <div className="rounded-[8px] bg-[rgba(250,249,245,0.72)] px-2.5 py-2.5 sm:px-3 sm:py-3">
+      <div className="flex min-w-0 items-center gap-1.5 text-[var(--color-secondary)] sm:gap-2">
+        {Icon ? <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-accent)]" aria-hidden="true" /> : null}
+        <div className="type-caption min-w-0 break-words">{label}</div>
       </div>
       <div className="type-title mt-1 text-[var(--color-text-main)]">{value || "-"}</div>
     </div>
@@ -216,7 +216,7 @@ function SparseProfileState({ characterName, onDelete }) {
       </div>
       <h2 className="type-title mt-4 text-[var(--color-text-main)]">Not enough information yet</h2>
       <p className="type-body mx-auto mt-2 max-w-[38ch] text-[var(--color-secondary)]">
-        Write more about {characterName || "this character"} in your notes if you would like to see their role, relationships, motivations, and timeline here.
+        Write another note or two about {characterName || "this character"} so Scriba can build a useful profile with their role, relationships, motivations, and timeline.
       </p>
       <button
         type="button"
@@ -420,6 +420,7 @@ export default function CharacterProfileSheet({
   initialSnapshot,
   trackingMode,
   noteLinks,
+  profileReadiness,
 }) {
   const router = useRouter();
   const normalizedTrackingMode = normalizeTrackingMode(trackingMode);
@@ -442,26 +443,38 @@ export default function CharacterProfileSheet({
   const sourceCount = effectiveSources.length;
   const baseRelationships = uniqueStringList(character?.relationships);
   const fallbackTimeline = Array.isArray(character?.timeline) ? character.timeline : [];
+  const profileReady = profileReadiness?.ready !== false;
   const fallbackSummary = [character?.short_bio, character?.full_bio]
     .filter((value) => typeof value === "string" && value.trim() && !isLowValueProfileText(value))
     .map((value) => value.trim())[0];
+  const broadProfileSummary = [structured.roleInStory, structured.quickMemory, structured.summary]
+    .filter((value) => typeof value === "string" && value.trim() && !isLowValueProfileText(value))
+    .map((value) => value.trim())[0];
   const summary =
-    (!isLowValueProfileText(structured.summary) ? structured.summary : "") ||
-    fallbackSummary ||
-    "Scriba has noticed this character, but your notes have not captured a clear profile yet.";
+    profileReady
+      ? broadProfileSummary ||
+        fallbackSummary ||
+        "Scriba has noticed this character, but your notes have not captured a clear profile yet."
+      : "Scriba has noticed this character, but needs more story context before it can build a trustworthy profile.";
   const role =
-    cleanRoleLabel(structured.roleLabel, character?.name) ||
-    cleanRoleLabel(character?.role, character?.name) ||
-    "Role not clear yet";
+    profileReady
+      ? cleanRoleLabel(structured.roleLabel, character?.name) ||
+        cleanRoleLabel(character?.role, character?.name) ||
+        "Role not clear yet"
+      : "Still gathering context";
   const showProfileLoading = isUpdating;
+  const hasRelationships = (structured.relationships?.length || 0) > 0 || baseRelationships.length > 0;
+  const hasDevelopmentArc = Boolean(structured.developmentArc);
+  const hasTraits = (structured.traits?.length || 0) > 0;
+  const hasMotivations = (structured.motivations?.length || 0) > 0;
+  const hasTimeline = (structured.timeline?.length || fallbackTimeline.length || 0) > 1;
+  const hasAdditionalProfileSections =
+    profileReady && (hasRelationships || hasDevelopmentArc || hasTraits || hasMotivations || hasTimeline);
   const hasUsefulProfile =
-    Boolean(structured.roleInStory || structured.developmentArc) ||
-    (structured.traits?.length || 0) > 0 ||
-    (structured.motivations?.length || 0) > 0 ||
-    (structured.relationships?.length || 0) > 0 ||
-    (baseRelationships.length || 0) > 0 ||
-    (structured.timeline?.length || fallbackTimeline.length || 0) > 1;
+    profileReady &&
+    (Boolean(broadProfileSummary || fallbackSummary) || hasAdditionalProfileSections);
   const shouldGenerate = useMemo(() => {
+    if (!profileReady) return false;
     if (!bookId || !slug) return false;
     if (structured.characterSheetVersion < 5) return true;
     const hasRichSnapshot =
@@ -485,6 +498,7 @@ export default function CharacterProfileSheet({
     snapshot?.id,
     snapshot?.created_at,
     character?.updated_at,
+    profileReady,
     structured.traits?.length,
     structured.motivations?.length,
     structured.distinctives?.length,
@@ -591,7 +605,7 @@ export default function CharacterProfileSheet({
           </div>
         ) : null}
 
-        <div className="mt-5 grid grid-cols-3 gap-2">
+        <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
           <StatChip label="First seen" value={firstLabel} icon={CalendarDays} />
           <StatChip label="Last seen" value={lastLabel} icon={Clock3} />
           <StatChip label="Appearances" value={sourceCount ? String(sourceCount) : "-"} icon={ListChecks} />
@@ -617,36 +631,42 @@ export default function CharacterProfileSheet({
         <SparseProfileState characterName={character?.name} onDelete={() => setConfirmingDelete(true)} />
       ) : null}
 
-      {!showProfileLoading && hasUsefulProfile ? (
+      {!showProfileLoading && hasAdditionalProfileSections ? (
         <>
-      <ProfileSection title="Role in the story" icon={BookOpen} tone="accent">
-        <TextBlock text={structured.roleInStory} />
-      </ProfileSection>
+          {hasRelationships ? (
+            <ProfileSection title="Key relationships" icon={HeartHandshake}>
+              <RelationshipCards items={structured.relationships || []} fallbackItems={baseRelationships} />
+            </ProfileSection>
+          ) : null}
 
-      <ProfileSection title="Key relationships" icon={HeartHandshake}>
-        <RelationshipCards items={structured.relationships || []} fallbackItems={baseRelationships} />
-      </ProfileSection>
+          {hasDevelopmentArc ? (
+            <ProfileSection title="How they're changing" icon={TrendingUp} tone="accent">
+              <TextBlock text={structured.developmentArc} />
+            </ProfileSection>
+          ) : null}
 
-      <ProfileSection title="How they're changing" icon={TrendingUp} tone="accent">
-        <TextBlock text={structured.developmentArc} />
-      </ProfileSection>
+          {hasTraits ? (
+            <ProfileSection title="Traits" icon={Sparkles}>
+              <LabeledList items={structured.traits || []} />
+            </ProfileSection>
+          ) : null}
 
-      <ProfileSection title="Traits" icon={Sparkles}>
-        <LabeledList items={structured.traits || []} />
-      </ProfileSection>
+          {hasMotivations ? (
+            <ProfileSection title="Motivations" icon={Shield}>
+              <LabeledList items={structured.motivations || []} />
+            </ProfileSection>
+          ) : null}
 
-      <ProfileSection title="Motivations" icon={Shield}>
-        <LabeledList items={structured.motivations || []} />
-      </ProfileSection>
-
-      <ProfileSection title="What they've been doing" icon={Route}>
-        <Timeline
-          items={structured.timeline || []}
-          fallbackItems={fallbackTimeline}
-          noteLinks={noteLinks}
-          trackingMode={normalizedTrackingMode}
-        />
-      </ProfileSection>
+          {hasTimeline ? (
+            <ProfileSection title="What they've been doing" icon={Route}>
+              <Timeline
+                items={structured.timeline || []}
+                fallbackItems={fallbackTimeline}
+                noteLinks={noteLinks}
+                trackingMode={normalizedTrackingMode}
+              />
+            </ProfileSection>
+          ) : null}
         </>
       ) : null}
 

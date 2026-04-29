@@ -241,7 +241,69 @@ function tryParseJson(raw: string): unknown {
   return null;
 }
 
-function normalizeStructured(raw: unknown): { summary: string; evidence: string[]; relationships: string[] } | null {
+function decodeJsonStringFallback(value: string): string {
+  return value
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\r")
+    .replace(/\\t/g, "\t")
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, "\\")
+    .trim();
+}
+
+function readJsonStringAt(text: string, quoteIndex: number): { value: string; end: number } | null {
+  if (text[quoteIndex] !== '"') return null;
+  let escaped = false;
+  for (let idx = quoteIndex + 1; idx < text.length; idx += 1) {
+    const char = text[idx];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (char === '"') {
+      const rawValue = text.slice(quoteIndex, idx + 1);
+      try {
+        return { value: JSON.parse(rawValue), end: idx + 1 };
+      } catch {
+        return { value: decodeJsonStringFallback(text.slice(quoteIndex + 1, idx)), end: idx + 1 };
+      }
+    }
+  }
+  return { value: decodeJsonStringFallback(text.slice(quoteIndex + 1)), end: text.length };
+}
+
+function extractJsonStringField(raw: string, field: keyof AssistantStructured): string {
+  const match = new RegExp(`"${field}"\\s*:\\s*"`).exec(raw);
+  if (!match) return "";
+  const quoteIndex = (match.index ?? 0) + match[0].lastIndexOf('"');
+  return readJsonStringAt(raw, quoteIndex)?.value.trim() ?? "";
+}
+
+function extractJsonStringArrayField(raw: string, field: keyof AssistantStructured): string[] {
+  const match = new RegExp(`"${field}"\\s*:\\s*\\[`).exec(raw);
+  if (!match) return [];
+  const values: string[] = [];
+  let idx = (match.index ?? 0) + match[0].length;
+  while (idx < raw.length) {
+    const char = raw[idx];
+    if (char === "]") break;
+    if (char !== '"') {
+      idx += 1;
+      continue;
+    }
+    const parsed = readJsonStringAt(raw, idx);
+    if (!parsed) break;
+    if (parsed.value.trim()) values.push(parsed.value.trim());
+    idx = parsed.end;
+  }
+  return Array.from(new Set(values));
+}
+
+function normalizeStructured(raw: unknown): AssistantStructured | null {
   if (!raw || typeof raw !== "object") return null;
   const rec = raw as { summary?: unknown; evidence?: unknown; relationships?: unknown };
   const summary = typeof rec.summary === "string" ? rec.summary.trim() : "";
@@ -249,6 +311,22 @@ function normalizeStructured(raw: unknown): { summary: string; evidence: string[
   const relationships = toStringList(rec.relationships);
   if (!summary) return null;
   return { summary, evidence, relationships };
+}
+
+function parseAssistantStructured(raw: string): AssistantStructured | null {
+  const parsed = normalizeStructured(tryParseJson(raw));
+  if (parsed) return parsed;
+
+  const text = raw.trim();
+  if (!text.startsWith("{") && !text.includes('"summary"')) return null;
+
+  const summary = extractJsonStringField(text, "summary");
+  if (!summary) return null;
+  return {
+    summary,
+    evidence: extractJsonStringArrayField(text, "evidence"),
+    relationships: extractJsonStringArrayField(text, "relationships"),
+  };
 }
 
 function slugifyName(name: string): string {
@@ -957,8 +1035,10 @@ Reply now.
     });
 
     const raw = (response.output_text ?? "").trim();
-    const structured = normalizeStructured(tryParseJson(raw));
-    const answer = structured?.summary || raw;
+    const structured = parseAssistantStructured(raw);
+    const answer =
+      structured?.summary ||
+      (raw.startsWith("{") ? "I found related notes, but I could not format the answer clearly. Try asking again." : raw);
     if (!answer) {
       throw new Error("The assistant did not return a reply.");
     }
