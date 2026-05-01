@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import KebabIcon from "@/components/KebabIcon";
 import ActionBottomSheet from "@/components/ui/ActionBottomSheet";
+import DestructiveConfirmDialog from "@/components/ui/DestructiveConfirmDialog";
 import { getFriendlyErrorMessage } from "@/lib/errors/user-facing";
 
 export default function CharacterProfileMenu({ bookId, slug, name }) {
@@ -64,41 +65,31 @@ export default function CharacterProfileMenu({ bookId, slug, name }) {
       </button>
 
       <ActionBottomSheet
-        open={open}
+        open={open && !confirmingDelete}
         onClose={closeSheet}
-        title={error || (confirmingDelete ? `Delete ${name || "this character"}?` : "Character actions")}
-        actions={
-          confirmingDelete
-            ? [
-                {
-                  id: "confirm-delete-character",
-                  label: isDeleting ? "Deleting character..." : "Delete permanently",
-                  onClick: handleDeleteCharacter,
-                  disabled: isDeleting,
-                  destructive: true,
-                },
-                {
-                  id: "keep-character",
-                  label: "Keep character",
-                  onClick: () => {
-                    setConfirmingDelete(false);
-                    setError("");
-                  },
-                  disabled: isDeleting,
-                },
-              ]
-            : [
-                {
-                  id: "delete-character",
-                  label: "Delete character",
-                  onClick: () => {
-                    setConfirmingDelete(true);
-                    setError("");
-                  },
-                  destructive: true,
-                },
-              ]
-        }
+        title="Character actions"
+        actions={[
+          {
+            id: "delete-character",
+            label: "Delete character",
+            onClick: () => {
+              setConfirmingDelete(true);
+              setError("");
+            },
+            destructive: true,
+          },
+        ]}
+      />
+      <DestructiveConfirmDialog
+        open={open && confirmingDelete}
+        onClose={closeSheet}
+        title={`Delete ${name || "this character"}?`}
+        description="This will permanently remove this character from your saved book memory and cannot be undone."
+        confirmLabel="Delete permanently"
+        cancelLabel="Keep character"
+        onConfirm={handleDeleteCharacter}
+        isConfirming={isDeleting}
+        error={error}
       />
     </>
   );

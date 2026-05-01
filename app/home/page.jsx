@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronRight } from "lucide-react";
 import AppBottomNav from "@/components/navigation/AppBottomNav";
 import SignOutButton from "@/components/SignOutButton";
+import HomeCharactersSection from "@/components/home/HomeCharactersSection";
 import { fetchBooksDashboardData } from "@/lib/books/dashboard-data";
 import HomeLoading from "./loading";
 import { requireUser } from "@/lib/supabase/require-user";
@@ -71,18 +71,6 @@ function formatPercent(value) {
   return Math.min(100, Math.max(0, Math.round(parsed)));
 }
 
-function hasCharacterDetail(character) {
-  if (character?.ready === false) return false;
-  const role = typeof character?.role === "string" ? character.role.trim().toLowerCase() : "";
-  const summary = typeof character?.summary === "string" ? character.summary.trim().toLowerCase() : "";
-  const subtitle = typeof character?.subtitle === "string" ? character.subtitle.trim().toLowerCase() : "";
-  return Boolean(
-    (role && role !== "role still forming") ||
-      (summary && summary !== "mentioned in your notes.") ||
-      (subtitle && subtitle !== "mentioned in your notes."),
-  );
-}
-
 function ActionLink({ href, icon, label, ariaLabel }) {
   return (
     <Link href={href} aria-label={ariaLabel} className="flex flex-1 items-center justify-center gap-2 px-1 text-[#4C7B75]">
@@ -143,9 +131,7 @@ export default async function HomePage({ searchParams }) {
     hasCurrentBook && Array.isArray(effectiveCurrentBook?.topCharacters) && effectiveCurrentBook.topCharacters.length > 0
       ? effectiveCurrentBook.topCharacters.slice(0, 4)
       : [];
-  const readyCharacters = baseCharacters.filter((character) => character?.ready !== false && hasCharacterDetail(character));
-  const pendingCharacterCount = baseCharacters.length - readyCharacters.length;
-  const topCharacters = readyCharacters.slice(0, 4);
+  const topCharacters = baseCharacters.slice(0, 4);
   const coverSrc = effectiveCurrentBook?.cover_url || "";
   const canShowProgress =
     hasCurrentBook &&
@@ -318,74 +304,10 @@ export default async function HomePage({ searchParams }) {
               </div>
             </section>
 
-            <section className="px-6 py-4 pb-32">
-              <div className="space-y-1">
-                <h2 className="type-h3 text-[#2A2A2A]">
-                  Characters to remember
-                </h2>
-                <p className="type-caption text-[#A19F99]">
-                  People shaping the story right now
-                </p>
-              </div>
-
-              <div className="mt-4 space-y-4">
-                {topCharacters.length > 0 ? (
-                  topCharacters.map((character) => {
-                        const key = character.slug || character.name;
-                        const hasDetail = hasCharacterDetail(character);
-                        const tile = (
-                          <div className="flex items-center gap-3 rounded-[8px] bg-[rgba(240,238,229,0.78)] px-4 py-3 backdrop-blur">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="type-title truncate text-[#2F2F2F]">
-                                  {character.name}
-                                </div>
-                                {Number(character.mentions) > 0 ? (
-                                  <div className="type-caption shrink-0 rounded-full bg-[rgba(250,249,245,0.72)] px-2 py-0.5 text-[#595853]">
-                                    {character.mentions} mentions
-                                  </div>
-                                ) : null}
-                              </div>
-                              <p className="type-caption mt-1 text-[#595853]">
-                                {hasDetail ? character.role || "Story role" : "Not enough detail yet"}
-                              </p>
-                              <p className="type-body mt-2 line-clamp-2 text-[#2A2A2A]">
-                                {hasDetail
-                                  ? character.summary || character.subtitle
-                                  : `Write more about ${character.name} to unlock their role, relationships, and timeline.`}
-                              </p>
-                            </div>
-                            <ChevronRight className="h-5 w-5 shrink-0 text-[#595853]" aria-hidden="true" />
-                          </div>
-                        );
-
-                        if (character.slug && hasCurrentBook) {
-                          return (
-                            <Link
-                              key={key}
-                              href={`/books/${encodeURIComponent(effectiveCurrentBook.id)}/characters/${encodeURIComponent(character.slug)}`}
-                              className="block"
-                            >
-                              {tile}
-                            </Link>
-                          );
-                        }
-
-                        return (
-                          <div key={key}>
-                            {tile}
-                          </div>
-                        );
-                      })
-                ) : (
-                  <div className="type-body rounded-[8px] bg-[rgba(240,238,229,0.78)] px-4 py-5 text-[#595853] backdrop-blur">
-                    {pendingCharacterCount > 0
-                      ? "Scriba has spotted character names. Write another note or two with what they do, want, or how they connect before their profiles appear here."
-                      : "Important characters will show up here once they are mentioned in your notes."}
-                  </div>
-                )}
-              </div>
-            </section>
+            <HomeCharactersSection
+              bookId={effectiveCurrentBook.id}
+              characters={topCharacters}
+            />
           </>
         ) : (
           <>

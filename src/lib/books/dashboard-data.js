@@ -4,6 +4,7 @@ import {
   normalizeTrackingMode,
 } from "@/lib/books/progress";
 import { getBookContextReadiness, getCharacterReadiness } from "@/lib/characters/readiness";
+import { isCharacterSnapshotFresh } from "@/lib/characters/snapshot";
 import { fetchKnowledgeEntitiesForBooks } from "@/lib/knowledge/read";
 
 function toArray(value) {
@@ -134,9 +135,12 @@ function buildMemoryLookup(rows) {
   return lookup;
 }
 
-function getSnapshotCardFields(snapshot) {
+function getSnapshotCardFields(snapshot, characterName = "", characterUpdatedAt = "") {
+  const fresh = isCharacterSnapshotFresh(snapshot, characterUpdatedAt, characterName);
+  if (!fresh) return { role: "", summary: "", fresh: false };
   const structured = snapshot?.structured && typeof snapshot.structured === "object" ? snapshot.structured : {};
-  const role = typeof structured.roleLabel === "string" ? structured.roleLabel.trim() : "";
+  const rawRole = typeof structured.roleLabel === "string" ? structured.roleLabel.trim() : "";
+  const role = getDisplayRoleLabel(rawRole, characterName);
   const summaryCandidates = [
     structured.quickMemory,
     structured.summary,
@@ -146,7 +150,22 @@ function getSnapshotCardFields(snapshot) {
   const summary = summaryCandidates
     .map((value) => (typeof value === "string" ? value.trim() : ""))
     .find(Boolean) || "";
-  return { role, summary };
+  return { role, summary, fresh };
+}
+
+function getDisplayRoleLabel(value, characterName = "") {
+  const label = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+  if (!label) return "";
+  const lower = label.toLowerCase();
+  const nameLower = String(characterName || "").toLowerCase();
+  if (lower === nameLower || ["character", "connected character", "story role", "role not clear yet", "still gathering context"].includes(lower)) {
+    return "";
+  }
+  const firstPhrase = label.replace(/\s*\([^)]*\)\s*/g, " ").split(/[.;:!?]/)[0]?.replace(/\s+/g, " ").trim() || "";
+  const words = firstPhrase.split(/\s+/).filter(Boolean);
+  if (words.length < 2 || words.length > 5) return "";
+  if (/\b(is|are|was|were|becomes|become|helps|must|has|have|does|will|with)\b/i.test(firstPhrase)) return "";
+  return firstPhrase;
 }
 
 function buildSnapshotLookup(rows) {
@@ -238,9 +257,13 @@ function buildBookStats(books, notes, memoryRows, characters, knowledgeEntities 
             .sort((a, b) => Number(b.mention_count || 0) - Number(a.mention_count || 0) || a.name.localeCompare(b.name))
             .slice(0, 4)
             .map((row) => {
-              const snapshotFields = getSnapshotCardFields(snapshotLookup.get(`${book.id}::${row.slug}`));
-              const summary = snapshotFields.summary || row.profile?.summary || "";
-              const role = snapshotFields.role || row.profile?.role || "";
+              const snapshotFields = getSnapshotCardFields(
+                snapshotLookup.get(`${book.id}::${row.slug}`),
+                row.name,
+                row.updated_at,
+              );
+              const summary = snapshotFields.fresh ? snapshotFields.summary : "";
+              const role = snapshotFields.fresh ? snapshotFields.role : "";
               const readiness = getCharacterReadiness({
                 mentionCount: row.mention_count,
                 sourceCount: row.first_chapter && row.last_chapter && row.first_chapter !== row.last_chapter ? 2 : 1,
@@ -250,6 +273,8 @@ function buildBookStats(books, notes, memoryRows, characters, knowledgeEntities 
                 role: row.profile?.role,
                 summary: row.profile?.summary,
               });
+              const hasSourceSignal = Number(row.mention_count || 0) > 0 || Boolean(row.first_chapter || row.last_chapter);
+              const needsPrep = Boolean(row.slug && hasSourceSignal && !snapshotFields.fresh);
               return {
                 name: row.name,
                 slug: row.slug || "",
@@ -259,7 +284,9 @@ function buildBookStats(books, notes, memoryRows, characters, knowledgeEntities 
                 firstChapter: row.first_chapter ?? null,
                 lastChapter: row.last_chapter ?? null,
                 mentions: Number(row.mention_count || 0),
-                ready: readiness.ready,
+                ready: readiness.ready && snapshotFields.fresh,
+                needsPrep,
+                prepStatus: needsPrep ? "preparing" : snapshotFields.fresh ? "ready" : "thin",
                 readiness,
               };
             })
@@ -272,9 +299,12 @@ function buildBookStats(books, notes, memoryRows, characters, knowledgeEntities 
             .map(([normalizedName, mentions]) => {
               const key = `${book.id}::${normalizedName}`;
               const row = normalizedCharacterLookup.get(key);
-              const snapshotFields = row?.slug ? getSnapshotCardFields(snapshotLookup.get(`${book.id}::${row.slug}`)) : {};
-              const summary = snapshotFields.summary || row?.short_bio || "";
-              const role = snapshotFields.role || row?.role || "";
+              const displayName = row?.name || mentionLabels.get(normalizedName) || normalizedName;
+              const snapshotFields = row?.slug
+                ? getSnapshotCardFields(snapshotLookup.get(`${book.id}::${row.slug}`), displayName, row.updated_at)
+                : { role: "", summary: "", fresh: false };
+              const summary = snapshotFields.fresh ? snapshotFields.summary : "";
+              const role = snapshotFields.fresh ? snapshotFields.role : "";
               const readiness = getCharacterReadiness({
                 mentionCount: mentions,
                 sourceCount: row?.first_chapter && row?.last_chapter && row.first_chapter !== row.last_chapter ? 2 : 1,
@@ -282,11 +312,14 @@ function buildBookStats(books, notes, memoryRows, characters, knowledgeEntities 
                 relationships: row?.relationships,
                 timeline: row?.timeline,
                 role: row?.role,
+                summary: row?.short_bio,
                 shortBio: row?.short_bio,
                 fullBio: row?.full_bio,
               });
+              const hasSourceSignal = Number(mentions || 0) > 0 || Boolean(row?.first_chapter || row?.last_chapter);
+              const needsPrep = Boolean(row?.slug && hasSourceSignal && !snapshotFields.fresh);
               return {
-                name: row?.name || mentionLabels.get(normalizedName) || normalizedName,
+                name: displayName,
                 slug: row?.slug || "",
                 subtitle: role || summary || "Mentioned in your notes.",
                 role,
@@ -294,7 +327,9 @@ function buildBookStats(books, notes, memoryRows, characters, knowledgeEntities 
                 firstChapter: null,
                 lastChapter: null,
                 mentions,
-                ready: readiness.ready,
+                ready: readiness.ready && snapshotFields.fresh,
+                needsPrep,
+                prepStatus: needsPrep ? "preparing" : snapshotFields.fresh ? "ready" : "thin",
                 readiness,
               };
             });
@@ -373,7 +408,7 @@ export async function fetchBooksDashboardData(supabase, userId) {
       .in("book_id", ids),
     supabase
       .from("characters")
-      .select("book_id,name,slug,role,short_bio")
+      .select("book_id,name,slug,role,short_bio,updated_at")
       .eq("user_id", userId)
       .in("book_id", ids),
     supabase

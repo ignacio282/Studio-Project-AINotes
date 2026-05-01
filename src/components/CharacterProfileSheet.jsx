@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -16,9 +16,11 @@ import {
   Sparkles,
   TrendingUp,
 } from "lucide-react";
-import ActionBottomSheet from "@/components/ui/ActionBottomSheet";
+import DestructiveConfirmDialog from "@/components/ui/DestructiveConfirmDialog";
 import { formatProgressLabel, normalizeTrackingMode } from "@/lib/books/progress";
 import { getFriendlyErrorMessage } from "@/lib/errors/user-facing";
+
+const CHARACTER_SHEET_VERSION = 6;
 
 function toStringList(value) {
   if (typeof value === "string") {
@@ -74,6 +76,66 @@ function normalizeLabeledItems(value) {
     .filter(Boolean);
 }
 
+function normalizeTimelineItems(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (typeof item === "string") {
+        const { label, detail } = splitLabelAndDetail(item);
+        return detail ? { chapterNumber: Number.NaN, event: detail, label } : null;
+      }
+      if (!item || typeof item !== "object") return null;
+      const chapter = Number(
+        item.chapterNumber ??
+          item.chapter ??
+          item.chapter_number ??
+          item.sourceChapter ??
+          item.source_chapter ??
+          item.first_chapter,
+      );
+      const event = [
+        item.event,
+        item.summary,
+        item.detail,
+        item.text,
+        item.snippet,
+        item.description,
+      ].find((value) => typeof value === "string" && value.trim());
+      const trimmedEvent = typeof event === "string" ? event.trim() : "";
+      if (!trimmedEvent) return null;
+      return {
+        chapterNumber: Number.isFinite(chapter) && chapter > 0 ? Math.floor(chapter) : Number.NaN,
+        event: trimmedEvent,
+      };
+    })
+    .filter(Boolean);
+}
+
+function splitMemoryText(value) {
+  const text = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+  if (!text) return [];
+  const explicitItems = text
+    .split(/\s*(?:\n+|•|-{1,2}\s+)\s*/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const chunks = explicitItems.length > 1 ? explicitItems : text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [text];
+  const seen = new Set();
+  return chunks
+    .map((chunk) => chunk.replace(/\s+/g, " ").trim())
+    .filter((chunk) => {
+      const key = chunk.toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 3)
+    .map((chunk) => (chunk.length > 150 ? `${chunk.slice(0, 147).trim()}...` : chunk));
+}
+
+function compactMemoryText(value) {
+  return splitMemoryText(value).join(" ");
+}
+
 function normalizeRelationshipCards(value) {
   if (!Array.isArray(value)) return [];
   return value
@@ -112,7 +174,7 @@ function normalizeSnapshot(snapshot) {
       characterSheetVersion: Number(structured.characterSheetVersion) || 0,
       roleLabel: typeof structured.roleLabel === "string" ? structured.roleLabel.trim() : "",
       summary,
-      quickMemory: typeof structured.quickMemory === "string" ? structured.quickMemory.trim() : "",
+      quickMemory: compactMemoryText(structured.quickMemory),
       roleInStory: typeof structured.roleInStory === "string" ? structured.roleInStory.trim() : "",
       developmentArc: typeof structured.developmentArc === "string" ? structured.developmentArc.trim() : "",
       traits: normalizeLabeledItems(structured.traits),
@@ -120,7 +182,7 @@ function normalizeSnapshot(snapshot) {
       distinctives: uniqueStringList(structured.distinctives),
       relationships: normalizeRelationshipCards(structured.relationships),
       evidence: uniqueStringList(structured.evidence),
-      timeline: Array.isArray(structured.timeline) ? structured.timeline : [],
+      timeline: normalizeTimelineItems(structured.timeline),
       openQuestions: uniqueStringList(structured.openQuestions),
     },
   };
@@ -140,12 +202,21 @@ function isLowValueProfileText(value) {
 }
 
 function cleanRoleLabel(value, characterName) {
-  const label = typeof value === "string" ? value.trim() : "";
+  const label = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
   if (!label) return "";
   const lower = label.toLowerCase();
   const nameLower = typeof characterName === "string" ? characterName.toLowerCase() : "";
-  if (lower === nameLower || lower === "character" || lower === "connected character") return "";
-  return label;
+  if (
+    lower === nameLower ||
+    ["character", "connected character", "story role", "role not clear yet", "still gathering context"].includes(lower)
+  ) {
+    return "";
+  }
+  const firstPhrase = label.replace(/\s*\([^)]*\)\s*/g, " ").split(/[.;:!?]/)[0]?.replace(/\s+/g, " ").trim() || "";
+  const words = firstPhrase.split(/\s+/).filter(Boolean);
+  if (words.length < 2 || words.length > 5) return "";
+  if (/\b(is|are|was|were|becomes|become|helps|must|has|have|does|will|with)\b/i.test(firstPhrase)) return "";
+  return firstPhrase;
 }
 
 function formatDate(value) {
@@ -235,6 +306,21 @@ function TextBlock({ text, emptyLabel = "Not captured yet" }) {
   return <p className="type-body max-w-[62ch] text-[var(--color-text-main)]">{value}</p>;
 }
 
+function MemoryBlock({ text }) {
+  const items = splitMemoryText(text);
+  if (!items.length) return <EmptyLine />;
+  return (
+    <div className="space-y-2">
+      {items.map((item, index) => (
+        <div key={`${item}-${index}`} className="flex items-start gap-2">
+          <CircleDot className="mt-2 h-2.5 w-2.5 shrink-0 text-[var(--color-text-accent)]" aria-hidden="true" />
+          <p className="type-body text-[var(--color-text-main)]">{item}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function LabeledList({ items }) {
   if (!items.length) return <EmptyLine />;
   return (
@@ -246,7 +332,7 @@ function LabeledList({ items }) {
         >
           <div className="flex items-start gap-2">
             <CircleDot className="mt-1 h-3.5 w-3.5 shrink-0 text-[var(--color-text-accent)]" aria-hidden="true" />
-            <div className="type-title text-[var(--color-text-main)]">{item.label}</div>
+            <div className="type-body text-[var(--color-text-main)]">{item.label}</div>
           </div>
           {item.evidence ? (
             <div className="type-body mt-2 text-[var(--color-secondary)]">{item.evidence}</div>
@@ -378,18 +464,13 @@ function SourceDisclosure({ chapters, noteLinks, trackingMode, open, onToggle })
 }
 
 function Timeline({ items, fallbackItems, noteLinks, trackingMode }) {
-  const source = items.length ? items : fallbackItems;
+  const source = items.length ? items : normalizeTimelineItems(fallbackItems);
   if (!source.length) return <EmptyLine />;
   return (
     <div className="space-y-3">
       {source.map((item, index) => {
-        const chapter = Number(item.chapterNumber ?? item.chapter ?? item.first_chapter);
-        const event =
-          typeof item.event === "string"
-            ? item.event.trim()
-            : typeof item.snippet === "string"
-              ? item.snippet.trim()
-              : "";
+        const chapter = Number(item.chapterNumber);
+        const event = typeof item.event === "string" ? item.event.trim() : "";
         const href = Number.isFinite(chapter) ? noteLinks?.[String(chapter)] : "";
         return (
           <div key={`${chapter}-${event}-${index}`} className="rounded-[8px] bg-[rgba(250,249,245,0.72)] px-4 py-3">
@@ -421,6 +502,7 @@ export default function CharacterProfileSheet({
   trackingMode,
   noteLinks,
   profileReadiness,
+  disableAutoGenerate = false,
 }) {
   const router = useRouter();
   const normalizedTrackingMode = normalizeTrackingMode(trackingMode);
@@ -431,7 +513,6 @@ export default function CharacterProfileSheet({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
-  const requestedSnapshotRef = useRef(false);
 
   const structured = snapshot?.structured ?? {};
   const firstLabel = formatProgressLabel(normalizedTrackingMode, character?.first_chapter);
@@ -442,12 +523,12 @@ export default function CharacterProfileSheet({
   const effectiveSources = Array.isArray(snapshot?.sources) && snapshot.sources.length > 0 ? snapshot.sources : fallbackSources;
   const sourceCount = effectiveSources.length;
   const baseRelationships = uniqueStringList(character?.relationships);
-  const fallbackTimeline = Array.isArray(character?.timeline) ? character.timeline : [];
+  const fallbackTimeline = normalizeTimelineItems(character?.timeline);
   const profileReady = profileReadiness?.ready !== false;
   const fallbackSummary = [character?.short_bio, character?.full_bio]
     .filter((value) => typeof value === "string" && value.trim() && !isLowValueProfileText(value))
     .map((value) => value.trim())[0];
-  const broadProfileSummary = [structured.roleInStory, structured.quickMemory, structured.summary]
+  const broadProfileSummary = [structured.summary, structured.quickMemory, structured.roleInStory]
     .filter((value) => typeof value === "string" && value.trim() && !isLowValueProfileText(value))
     .map((value) => value.trim())[0];
   const summary =
@@ -464,56 +545,43 @@ export default function CharacterProfileSheet({
       : "Still gathering context";
   const showProfileLoading = isUpdating;
   const hasRelationships = (structured.relationships?.length || 0) > 0 || baseRelationships.length > 0;
+  const hasQuickMemory = Boolean(structured.quickMemory);
   const hasDevelopmentArc = Boolean(structured.developmentArc);
   const hasTraits = (structured.traits?.length || 0) > 0;
   const hasMotivations = (structured.motivations?.length || 0) > 0;
-  const hasTimeline = (structured.timeline?.length || fallbackTimeline.length || 0) > 1;
+  const timelineItems = structured.timeline?.length ? structured.timeline : fallbackTimeline;
+  const hasTimeline = timelineItems.length > 0;
   const hasAdditionalProfileSections =
-    profileReady && (hasRelationships || hasDevelopmentArc || hasTraits || hasMotivations || hasTimeline);
+    profileReady && (hasQuickMemory || hasRelationships || hasDevelopmentArc || hasTraits || hasMotivations || hasTimeline);
   const hasUsefulProfile =
     profileReady &&
     (Boolean(broadProfileSummary || fallbackSummary) || hasAdditionalProfileSections);
   const shouldGenerate = useMemo(() => {
+    if (disableAutoGenerate) return false;
     if (!profileReady) return false;
     if (!bookId || !slug) return false;
-    if (structured.characterSheetVersion < 5) return true;
-    const hasRichSnapshot =
-      (structured.traits?.length || 0) +
-        (structured.motivations?.length || 0) +
-        (structured.distinctives?.length || 0) +
-        (structured.relationships?.length || 0) +
-        (structured.roleInStory ? 1 : 0) +
-        (structured.developmentArc ? 1 : 0) +
-        (structured.timeline?.length || 0) +
-        (structured.evidence?.length || 0) >
-      1;
-    if (snapshot?.id && !hasRichSnapshot) return true;
+    if (structured.characterSheetVersion < CHARACTER_SHEET_VERSION) return true;
     if (!snapshot?.id) return true;
     const snapshotTime = new Date(snapshot.created_at || "").getTime();
     const characterTime = new Date(character?.updated_at || "").getTime();
     return Number.isFinite(snapshotTime) && Number.isFinite(characterTime) && characterTime > snapshotTime;
   }, [
     bookId,
+    disableAutoGenerate,
     slug,
     snapshot?.id,
     snapshot?.created_at,
     character?.updated_at,
     profileReady,
-    structured.traits?.length,
-    structured.motivations?.length,
-    structured.distinctives?.length,
-    structured.relationships?.length,
-    structured.roleInStory,
-    structured.developmentArc,
-    structured.timeline?.length,
-    structured.evidence?.length,
     structured.characterSheetVersion,
   ]);
 
   useEffect(() => {
-    if (!shouldGenerate || requestedSnapshotRef.current) return;
+    if (!shouldGenerate) {
+      setIsUpdating(false);
+      return;
+    }
     let active = true;
-    requestedSnapshotRef.current = true;
     const generate = async () => {
       try {
         setIsUpdating(true);
@@ -533,7 +601,7 @@ export default function CharacterProfileSheet({
         const payload = await response.json();
         if (active && payload?.snapshot) {
           setSnapshot(normalizeSnapshot(payload.snapshot));
-          requestedSnapshotRef.current = false;
+          router.refresh();
         }
       } catch (error) {
         if (active) {
@@ -549,7 +617,7 @@ export default function CharacterProfileSheet({
     return () => {
       active = false;
     };
-  }, [bookId, slug, shouldGenerate]);
+  }, [bookId, slug, shouldGenerate, router]);
 
   const handleDeleteCharacter = async () => {
     if (!bookId || !slug || isDeleting) return;
@@ -639,6 +707,12 @@ export default function CharacterProfileSheet({
             </ProfileSection>
           ) : null}
 
+          {hasQuickMemory ? (
+            <ProfileSection title="What to remember" icon={BookOpen} tone="accent">
+              <MemoryBlock text={structured.quickMemory} />
+            </ProfileSection>
+          ) : null}
+
           {hasDevelopmentArc ? (
             <ProfileSection title="How they're changing" icon={TrendingUp} tone="accent">
               <TextBlock text={structured.developmentArc} />
@@ -670,32 +744,20 @@ export default function CharacterProfileSheet({
         </>
       ) : null}
 
-      <ActionBottomSheet
+      <DestructiveConfirmDialog
         open={confirmingDelete || Boolean(deleteError)}
         onClose={() => {
           if (isDeleting) return;
           setConfirmingDelete(false);
           setDeleteError("");
         }}
-        title={deleteError || `Delete ${character?.name || "this character"}?`}
-        actions={[
-          {
-            id: "confirm-delete-character",
-            label: isDeleting ? "Deleting character..." : "Delete permanently",
-            onClick: handleDeleteCharacter,
-            disabled: isDeleting,
-            destructive: true,
-          },
-          {
-            id: "keep-character",
-            label: "Keep character",
-            onClick: () => {
-              setConfirmingDelete(false);
-              setDeleteError("");
-            },
-            disabled: isDeleting,
-          },
-        ]}
+        title={`Delete ${character?.name || "this character"}?`}
+        description="This will permanently remove this character from your saved book memory and cannot be undone."
+        confirmLabel="Delete permanently"
+        cancelLabel="Keep character"
+        onConfirm={handleDeleteCharacter}
+        isConfirming={isDeleting}
+        error={deleteError}
       />
     </div>
   );

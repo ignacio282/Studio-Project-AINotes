@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HeartHandshake, MapPin, Sparkles, Users } from "lucide-react";
-import ActionBottomSheet from "@/components/ui/ActionBottomSheet";
+import DestructiveConfirmDialog from "@/components/ui/DestructiveConfirmDialog";
 import { formatProgressLabel, normalizeTrackingMode } from "@/lib/books/progress";
 import { getFriendlyErrorMessage } from "@/lib/errors/user-facing";
 
@@ -296,32 +296,20 @@ export default function PlaceProfileSheet({ bookId, slug, initialSnapshot, track
         </>
       ) : null}
 
-      <ActionBottomSheet
+      <DestructiveConfirmDialog
         open={confirmingDelete || Boolean(deleteError)}
         onClose={() => {
           if (isDeleting) return;
           setConfirmingDelete(false);
           setDeleteError("");
         }}
-        title={deleteError || `Delete ${placeName || "this place"}?`}
-        actions={[
-          {
-            id: "confirm-delete-place",
-            label: isDeleting ? "Deleting place..." : "Delete permanently",
-            onClick: handleDeletePlace,
-            disabled: isDeleting,
-            destructive: true,
-          },
-          {
-            id: "keep-place",
-            label: "Keep place",
-            onClick: () => {
-              setConfirmingDelete(false);
-              setDeleteError("");
-            },
-            disabled: isDeleting,
-          },
-        ]}
+        title={`Delete ${placeName || "this place"}?`}
+        description="This will permanently remove this place from your saved book memory and cannot be undone."
+        confirmLabel="Delete permanently"
+        cancelLabel="Keep place"
+        onConfirm={handleDeletePlace}
+        isConfirming={isDeleting}
+        error={deleteError}
       />
     </div>
   );

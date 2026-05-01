@@ -1,5 +1,11 @@
-import RouteSkeletonScreen from "@/components/ui/RouteSkeletonScreen";
+import ScribaLoadingScreen from "@/components/ui/ScribaLoadingScreen";
 
 export default function AppLoading() {
-  return <RouteSkeletonScreen status="Opening Scriba" />;
+  return (
+    <ScribaLoadingScreen
+      title="Opening Scriba"
+      message="Loading your books and reading memory..."
+      status="Opening Scriba"
+    />
+  );
 }

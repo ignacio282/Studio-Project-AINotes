@@ -3,12 +3,14 @@ import { getServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import BackArrowIcon from "@/components/BackArrowIcon";
 import CharacterProfileMenu from "@/components/CharacterProfileMenu";
+import CharacterPrepGate from "@/components/CharacterPrepGate";
 import CharacterProfileSheet from "@/components/CharacterProfileSheet";
 import QaLoadingPage from "@/components/qa/QaLoadingPage";
 import MissingResourcePage from "@/components/errors/MissingResourcePage";
 import { resolveQaState } from "@/lib/qa/state";
 import { normalizeTrackingMode } from "@/lib/books/progress";
 import { getCharacterReadiness } from "@/lib/characters/readiness";
+import { CHARACTER_SHEET_VERSION, isCharacterSnapshotFresh } from "@/lib/characters/snapshot";
 import { buildCharacterSnapshotFromKnowledge, fetchCharacterKnowledge } from "@/lib/knowledge/read";
 
 export const dynamic = "force-dynamic";
@@ -32,15 +34,6 @@ function getSnapshotChapters(snapshot) {
 
 function getSnapshotVersion(snapshot) {
   return Number(snapshot?.structured?.characterSheetVersion) || 0;
-}
-
-function isSnapshotFreshForCharacter(snapshot, character) {
-  if (!snapshot?.created_at) return false;
-  const snapshotTime = new Date(snapshot.created_at).getTime();
-  const characterTime = new Date(character?.updated_at || "").getTime();
-  if (!Number.isFinite(snapshotTime)) return false;
-  if (!Number.isFinite(characterTime)) return true;
-  return snapshotTime >= characterTime;
 }
 
 function buildNoteLinks(notes, bookId) {
@@ -225,12 +218,15 @@ export default async function CharacterProfilePage({ params, searchParams }) {
     fullBio: knowledgeCharacter?.full_bio || character?.full_bio,
   });
   const snapshotVersion = getSnapshotVersion(snapshot);
-  const displaySnapshot =
-    profileReadiness.ready
-      ? snapshotVersion >= 5 && isSnapshotFreshForCharacter(snapshot, knowledgeCharacter || character)
-        ? snapshot
-        : knowledgeSnapshot || snapshot
-      : null;
+  const hasFreshStoredSnapshot =
+    snapshotVersion >= CHARACTER_SHEET_VERSION &&
+    isCharacterSnapshotFresh(
+      snapshot,
+      (knowledgeCharacter || character)?.updated_at,
+      (knowledgeCharacter || character)?.name,
+    );
+  const displaySnapshot = profileReadiness.ready && hasFreshStoredSnapshot ? snapshot : null;
+  const needsSnapshotPrep = profileReadiness.ready && !hasFreshStoredSnapshot;
   const safeCharacter =
     knowledgeCharacter ||
     character || {
@@ -263,15 +259,27 @@ export default async function CharacterProfilePage({ params, searchParams }) {
       </header>
 
       <main className="mx-auto max-w-2xl px-6 py-6">
-        <CharacterProfileSheet
-          bookId={bookId}
-          slug={slug}
-          character={safeCharacter}
-          initialSnapshot={displaySnapshot}
-          trackingMode={trackingMode}
-          noteLinks={noteLinks}
-          profileReadiness={profileReadiness}
-        />
+        {needsSnapshotPrep ? (
+          <CharacterPrepGate
+            bookId={bookId}
+            slug={slug}
+            character={safeCharacter}
+            initialSnapshot={snapshot || knowledgeSnapshot}
+            trackingMode={trackingMode}
+            noteLinks={noteLinks}
+            profileReadiness={profileReadiness}
+          />
+        ) : (
+          <CharacterProfileSheet
+            bookId={bookId}
+            slug={slug}
+            character={safeCharacter}
+            initialSnapshot={displaySnapshot}
+            trackingMode={trackingMode}
+            noteLinks={noteLinks}
+            profileReadiness={profileReadiness}
+          />
+        )}
       </main>
     </div>
   );

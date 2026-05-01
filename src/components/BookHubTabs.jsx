@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import KebabIcon from "@/components/KebabIcon";
 import ActionBottomSheet from "@/components/ui/ActionBottomSheet";
+import DestructiveConfirmDialog from "@/components/ui/DestructiveConfirmDialog";
 import { formatProgressLabel, normalizeTrackingMode } from "@/lib/books/progress";
 
 const TABS = [
@@ -13,6 +14,8 @@ const TABS = [
   { id: "characters", label: "Characters" },
   { id: "places", label: "Places" },
 ];
+
+const ASSISTANT_NOTICE_STORAGE_PREFIX = "scriba:assistant-notice-seen";
 
 function formatCount(count, singular, plural) {
   return `${count} ${count === 1 ? singular : plural}`;
@@ -114,7 +117,7 @@ export default function BookHubTabs({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("notes");
   const [showAllNotes, setShowAllNotes] = useState(false);
-  const [showAssistantNotice, setShowAssistantNotice] = useState(true);
+  const [showAssistantNotice, setShowAssistantNotice] = useState(false);
   const [notesState, setNotesState] = useState(Array.isArray(notes) ? notes : []);
   const [activeNoteActionId, setActiveNoteActionId] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -131,6 +134,45 @@ export default function BookHubTabs({
   useEffect(() => {
     setNotesState(Array.isArray(notes) ? notes : []);
   }, [notes]);
+
+  useEffect(() => {
+    if (!bookId || notesState.length !== 1) {
+      setShowAssistantNotice(false);
+      return;
+    }
+
+    const storageKey = `${ASSISTANT_NOTICE_STORAGE_PREFIX}:${bookId}`;
+    let markSeenTimer;
+
+    try {
+      if (window.localStorage.getItem(storageKey) === "1") {
+        setShowAssistantNotice(false);
+      } else {
+        setShowAssistantNotice(true);
+        markSeenTimer = window.setTimeout(() => {
+          try {
+            window.localStorage.setItem(storageKey, "1");
+          } catch {}
+        }, 1000);
+      }
+    } catch {
+      setShowAssistantNotice(true);
+    }
+
+    return () => {
+      if (markSeenTimer) window.clearTimeout(markSeenTimer);
+    };
+  }, [bookId, notesState.length]);
+
+  const dismissAssistantNotice = () => {
+    setShowAssistantNotice(false);
+
+    if (!bookId) return;
+
+    try {
+      window.localStorage.setItem(`${ASSISTANT_NOTICE_STORAGE_PREFIX}:${bookId}`, "1");
+    } catch {}
+  };
 
   const activeNoteAction = useMemo(
     () => notesState.find((note) => note.id === activeNoteActionId) ?? null,
@@ -225,7 +267,7 @@ export default function BookHubTabs({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowAssistantNotice(false)}
+                  onClick={dismissAssistantNotice}
                   className="rounded-full p-1 text-[var(--color-secondary)] transition hover:text-[var(--color-text-main)]"
                   aria-label="Dismiss assistant tip"
                 >
@@ -294,41 +336,35 @@ export default function BookHubTabs({
             </div>
           )}
           <ActionBottomSheet
-            open={Boolean(activeNoteAction)}
+            open={Boolean(activeNoteAction) && !confirmingDelete}
             onClose={closeNoteActions}
-            title={confirmingDelete ? "Delete this note?" : noteActionError || "Note actions"}
-            actions={
-              confirmingDelete
-                ? [
-                    {
-                      id: "confirm-delete-note",
-                      label: isDeletingNote ? "Deleting note..." : "Delete permanently",
-                      onClick: handleDeleteNote,
-                      disabled: isDeletingNote,
-                      destructive: true,
-                    },
-                    {
-                      id: "cancel-delete-note",
-                      label: "Keep note",
-                      onClick: () => {
-                        setConfirmingDelete(false);
-                        setNoteActionError("");
-                      },
-                      disabled: isDeletingNote,
-                    },
-                  ]
-                : [
-                    {
-                      id: "delete-note",
-                      label: "Delete note",
-                      onClick: () => {
-                        setConfirmingDelete(true);
-                        setNoteActionError("");
-                      },
-                      destructive: true,
-                    },
-                  ]
-            }
+            title="Note actions"
+            actions={[
+              {
+                id: "delete-note",
+                label: "Delete note",
+                onClick: () => {
+                  setConfirmingDelete(true);
+                  setNoteActionError("");
+                },
+                destructive: true,
+              },
+            ]}
+          />
+          <DestructiveConfirmDialog
+            open={Boolean(activeNoteAction) && confirmingDelete}
+            onClose={() => {
+              if (isDeletingNote) return;
+              setConfirmingDelete(false);
+              setNoteActionError("");
+            }}
+            title="Delete this note?"
+            description="This will permanently remove this note and cannot be undone."
+            confirmLabel="Delete permanently"
+            cancelLabel="Keep note"
+            onConfirm={handleDeleteNote}
+            isConfirming={isDeletingNote}
+            error={noteActionError}
           />
         </div>
       )}
