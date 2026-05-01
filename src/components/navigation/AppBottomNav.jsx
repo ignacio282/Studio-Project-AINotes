@@ -70,12 +70,12 @@ function ActionOption({ title, subtitle, icon, onClick, disabled = false }) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="w-full rounded-[8px] bg-[#F0EEE5] p-4 text-center transition hover:bg-[color:var(--rc-color-accent-subtle)/45%] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#F0EEE5]"
+      className="w-full rounded-[8px] bg-[rgba(240,238,229,0.78)] p-4 text-center transition hover:bg-[rgba(240,238,229,0.92)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[rgba(240,238,229,0.78)]"
     >
       <div className="mx-auto flex w-full max-w-[326px] flex-col items-center text-center">
         <span className="flex h-6 w-6 items-center justify-center">{icon}</span>
-        <div className="type-button text-[#2A2A2A]">{title}</div>
-        <div className="type-caption text-[#595853]">{subtitle}</div>
+        <div className="type-button text-[var(--color-text-main)]">{title}</div>
+        <div className="type-caption text-[var(--color-secondary)]">{subtitle}</div>
       </div>
     </button>
   );
@@ -165,7 +165,7 @@ export default function AppBottomNav({
           <motion.div className="fixed inset-0 z-50 flex items-end justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <button type="button" className="absolute inset-0 bg-black/35" onClick={closeSheet} aria-label="Close actions" />
             <motion.div
-              className="relative z-10 w-full max-w-screen-sm overflow-hidden rounded-t-[32px] bg-[#F7F6F3]"
+              className="relative z-10 w-full max-w-screen-sm overflow-hidden rounded-t-[32px] bg-[rgba(247,246,243,0.94)] shadow-[0_-18px_45px_rgba(42,42,42,0.18)] backdrop-blur"
               initial={{ y: 360 }}
               animate={{ y: 0 }}
               exit={{ y: 360 }}
@@ -180,10 +180,10 @@ export default function AppBottomNav({
               }}
             >
               <div className="px-4 py-4">
-                <div className="mx-auto h-1 w-8 rounded-full bg-[#2A2A2A]" />
+                <div className="mx-auto h-1 w-8 rounded-full bg-[var(--color-text-main)]/55" />
               </div>
               <div className="px-4 pb-4 pt-4">
-                <div className="type-h3 text-[#2A2A2A]">
+                <div className="type-h3 text-[var(--color-text-main)]">
                   {safeBookTitle}
                 </div>
                 <div className="mt-4 space-y-2">
@@ -204,7 +204,7 @@ export default function AppBottomNav({
                 <button
                   type="button"
                   onClick={closeSheet}
-                  className="type-title mt-4 h-10 w-full px-1 text-center text-[#4C7B75]"
+                  className="type-title mt-4 h-10 w-full px-1 text-center text-[var(--color-text-accent)] transition hover:text-[var(--color-accent-hover)]"
                 >
                   Close
                 </button>

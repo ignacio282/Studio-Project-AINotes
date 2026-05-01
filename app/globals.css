@@ -138,8 +138,27 @@ body > * {
   }
 }
 
+.scriba-logo-breathe {
+  animation: scriba-logo-breathe 2.8s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes scriba-logo-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   body {
+    animation: none;
+  }
+
+  .scriba-logo-breathe {
     animation: none;
   }
 }
