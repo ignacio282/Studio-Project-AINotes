@@ -16,13 +16,13 @@ import {
 const SLIDES = [
   {
     icon: BookOpen,
-    eyebrow: "Start with the story",
+    eyebrow: "Read first, organize later",
     title: "Welcome to Scriba",
-    body: "A calmer way to keep track of what you read, chapter by chapter.",
+    body: "Jot anything as you read. Scriba pulls out the characters, places, and events and remembers them in case you forget.",
     details: [
-      "Save the moments that matter",
-      "Build memory without rereading everything",
-      "Keep the current book in focus",
+      "Write however you want, no templates",
+      "People, places, and events organized for you",
+      "Ask questions and get answers from what you actually wrote",
     ],
   },
   {

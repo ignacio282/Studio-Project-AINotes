@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getBrowserSupabase } from "@/lib/supabase/client";
 import { getFriendlyErrorMessage } from "@/lib/errors/user-facing";
@@ -59,48 +60,67 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center bg-[var(--color-page)] px-6 py-10 text-[var(--color-text-main)]">
-      <div className="rounded-2xl bg-[var(--color-surface)] p-6">
-        <div className="type-h2">
-          Sign in
-        </div>
-        <div className="type-body mt-2 text-[var(--color-secondary)]">
-          Use your Scriba email and password.
+    <main className="flex min-h-screen justify-center bg-[var(--color-accent)] px-6 py-10 text-[var(--color-text-on-accent)]">
+      <section className="flex min-h-[calc(100vh-5rem)] w-full max-w-md flex-col">
+        <div className="mb-12 flex justify-center">
+          <Image
+            src="/scriba-logo-white.svg"
+            alt="Scriba"
+            width={136}
+            height={142}
+            priority
+            className="h-32 w-auto"
+          />
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <label className="type-body block text-[var(--color-secondary)]">
-            Email
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="type-body mt-2 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/25%] bg-white/80 px-4 py-2 text-[var(--color-text-main)] outline-none focus:border-[var(--color-text-accent)]"
-              required
-            />
-          </label>
-          <label className="type-body block text-[var(--color-secondary)]">
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="type-body mt-2 w-full rounded-xl border border-[color:var(--rc-color-text-secondary)/25%] bg-white/80 px-4 py-2 text-[var(--color-text-main)] outline-none focus:border-[var(--color-text-accent)]"
-              required
-            />
-          </label>
+        <div>
+          <h1 className="type-h1 text-[var(--color-text-on-accent)]">Sign in</h1>
+          <p className="type-body mt-2 max-w-xs text-[rgba(255,255,255,0.78)]">
+            Use your Scriba email and password.
+          </p>
+        </div>
 
-          {error ? <div className="type-body text-red-500">{error}</div> : null}
+        <form onSubmit={handleSubmit} className="mt-6 flex flex-1 flex-col">
+          <div className="space-y-4">
+            <label className="type-body block text-[rgba(255,255,255,0.82)]">
+              Email
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="type-body mt-2 h-[54px] w-full rounded-lg bg-[rgba(250,249,245,0.94)] px-4 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] transition focus:bg-[var(--rc-color-page)] focus:ring-2 focus:ring-[rgba(250,249,245,0.42)]"
+                autoComplete="email"
+                required
+              />
+            </label>
+            <label className="type-body block text-[rgba(255,255,255,0.82)]">
+              Password
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="type-body mt-2 h-[54px] w-full rounded-lg bg-[rgba(250,249,245,0.94)] px-4 text-[var(--color-text-main)] outline-none placeholder:text-[var(--color-text-disabled)] transition focus:bg-[var(--rc-color-page)] focus:ring-2 focus:ring-[rgba(250,249,245,0.42)]"
+                autoComplete="current-password"
+                required
+              />
+            </label>
+
+            {error ? (
+              <div className="type-body rounded-lg bg-[rgba(250,249,245,0.92)] px-4 py-3 text-red-700">
+                {error}
+              </div>
+            ) : null}
+          </div>
 
           <button
             type="submit"
-            className="type-button w-full rounded-2xl bg-[var(--color-accent)] px-4 py-3 text-[var(--color-text-on-accent)]"
+            className="type-button mt-auto h-12 w-full rounded-lg bg-[var(--rc-color-page)] px-4 text-[var(--color-text-accent)] transition hover:bg-[rgba(250,249,245,0.92)] disabled:cursor-not-allowed disabled:opacity-70"
             disabled={loading}
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
